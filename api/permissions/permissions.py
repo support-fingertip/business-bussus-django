@@ -408,6 +408,7 @@ from api.ORM.setup.newprofile import new_profile
 from api.permissions.FetchUsers.fetch_all_subordinates import get_all_subordinate_ids
 from api.permissions.FetchUsers.fetch_shared_records import fetch_shared_records
 from api.permissions._orm_dispatch import dispatch as _dispatch_path
+from api.security.schema_authority import get_validated_schema
 from api.workflows.workflow_executor import execute_workflows
 from api.ORM.sqlFunctions.getQueryBuilder import build_query
 from utils.access_level_filter import add_private_owner_filter
@@ -531,7 +532,7 @@ def _get_object_details_orm(table_name, schema, include_setup):
 
 
 def get_object_details(table_name, **kwargs):
-    schema = kwargs.get('schema')
+    schema = get_validated_schema(kwargs)
     include_setup = kwargs.get('include_setup', False)
     request = kwargs.get('request')
     cache = _perm_cache(request)
@@ -581,13 +582,13 @@ def profile_has_admin_access(profile_id, schema):
     )
 
 def get_all_fields_for_table(table_name, **kwargs):
-    cursor = connection.cursor() # Ensure the search path is set to public schema
+    cursor = connection.cursor()
     cursor.execute("""
         SELECT column_name
         FROM information_schema.columns
         WHERE table_schema = %s AND table_name = %s
         ORDER BY ordinal_position
-    """, [kwargs.get('schema'), table_name])
+    """, [get_validated_schema(kwargs), table_name])
     columns = cursor.fetchall()
     return [col[0] for col in columns]
 
@@ -669,7 +670,7 @@ def check_permission(object_id, permission_type, **kwargs):
             f"Invalid permission_type {permission_type!r}; "
             f"expected one of {sorted(VALID_PERMISSION_TYPES)}"
         )
-    schema = kwargs.get('schema')
+    schema = get_validated_schema(kwargs)
     profile_id = kwargs.get('profile_id')
     request = kwargs.get('request')
     cache = _perm_cache(request)
@@ -754,7 +755,7 @@ def get_field_metadata(object_id, access_type, **kwargs):
     string. The whitelist also gates the ORM path's getattr against the
     Field model so an attacker cannot read arbitrary attributes.
     """
-    schema = kwargs.get('schema')
+    schema = get_validated_schema(kwargs)
     profile_id = kwargs.get('profile_id')
     request = kwargs.get('request')
     cache = _perm_cache(request)
@@ -947,7 +948,7 @@ def get_permissions(request, **kwargs):
         browser = True
         table_name = kwargs.get('tableName')
         user_id = kwargs.get('user_', {}).get('id')
-        schema = kwargs.get('schema')
+        schema = get_validated_schema(kwargs)
         if not schema:
             raise Exception("schema is required for get_permissions")
         fields = kwargs.get('fields', None)
@@ -975,7 +976,7 @@ def get_permissions(request, **kwargs):
         )
 
         # Check if user has any shared records for this object
-        shared_recs = fetch_shared_records(user_id, table_name, kwargs.get('schema'), type='read')
+        shared_recs = fetch_shared_records(user_id, table_name, schema, type='read')
 
         if not has_object_permission and not shared_recs:
             raise Exception(f'Access to {object_label.lower()} is denied for this user.')
@@ -983,7 +984,7 @@ def get_permissions(request, **kwargs):
         if access_level == 'Private' or not has_object_permission:
             # Private → only owner, subordinates, and shared records
             # No object permission but has shared records → restrict to shared records only
-            ids = get_all_subordinate_ids(user_id, kwargs.get('schema')) if has_object_permission else []
+            ids = get_all_subordinate_ids(user_id, schema) if has_object_permission else []
             existing_filters = kwargs.get('where')
             # For events, also expose records where the current user is the assignee (users_id),
             # so events created by others (e.g. admin) and assigned to this user are visible.
@@ -1050,13 +1051,14 @@ def get_permissions(request, **kwargs):
 def post_permission(request, table_name, **kwargs):
     user = kwargs.get('user_', {})
     user_id = user.get('id')
+    schema = get_validated_schema(kwargs)
 
     object_row = get_object_details(table_name, **kwargs)
 
-    if not object_row:        
+    if not object_row:
         log_audit(f'Created record in {table_name}', 'Create', **kwargs)
         if kwargs.get('setup_check', True):
-            if profile_has_admin_access(kwargs.get('profile_id'), kwargs.get('schema')):
+            if profile_has_admin_access(kwargs.get('profile_id'), schema):
                 if table_name == 'app':
                     return create_app(kwargs.get('create_data'), section='New app Created', **kwargs)
                 elif table_name == 'profile':
@@ -1090,12 +1092,15 @@ def post_permission(request, table_name, **kwargs):
 def patch_permission(request, table_name, **kwargs):
     cursor = connection.cursor()
     user_id = kwargs.get('user_',{}).get('id')
-    schema = kwargs.get('schema', 'public')
+    # In patch_permission the schema kwarg historically defaulted to
+    # 'public' — preserve that behaviour for non-HTTP callers, but
+    # honour the pinned tenant when we have one.
+    schema = get_validated_schema(kwargs) or 'public'
     object_row = get_object_details(table_name, **kwargs)
     if not object_row:
         log_audit(f'Updated record in {table_name}', 'Update', **kwargs)
         if kwargs.get('setup_check', True):
-            if profile_has_admin_access(kwargs.get('profile_id'), kwargs.get('schema')):
+            if profile_has_admin_access(kwargs.get('profile_id'), schema):
                 return updateRawSQL(table_name, **kwargs)
             else:
                 raise Exception(f'Access Denied for the action. Please contact your administrator.')
@@ -1111,7 +1116,7 @@ def patch_permission(request, table_name, **kwargs):
         or DEFAULT_OBJECT_ACCESS_LEVEL
     )
 
-    shared_recs = fetch_shared_records(user_id, table_name, kwargs.get('schema'), type='write')
+    shared_recs = fetch_shared_records(user_id, table_name, schema, type='write')
 
     if not has_object_permission and not shared_recs:
         raise Exception(f'Access to {object_label} is denied for this user.')
@@ -1168,11 +1173,11 @@ def patch_permission(request, table_name, **kwargs):
         return record["id"]
 
     # Build sets for per-record access checks
-    ids = get_all_subordinate_ids(user_id, kwargs.get('schema')) if has_object_permission else []
+    ids = get_all_subordinate_ids(user_id, schema) if has_object_permission else []
     write_shared_ids = {str(r.get('record_id')) for r in shared_recs if r.get('record_id')}
 
     # Detect records explicitly shared as read-only (shared with READ but not WRITE)
-    all_shared_recs = fetch_shared_records(user_id, table_name, kwargs.get('schema'), type='read')
+    all_shared_recs = fetch_shared_records(user_id, table_name, schema, type='read')
     all_shared_ids = {str(r.get('record_id')) for r in all_shared_recs if r.get('record_id')}
     read_only_shared_ids = all_shared_ids - write_shared_ids
 
@@ -1191,7 +1196,7 @@ def patch_permission(request, table_name, **kwargs):
                 raise Exception("Each record must have an 'id' or 'name' field for update.")
 
             db_record = _lock_record_for_update(
-                table_name, record_id, kwargs.get('schema', 'public')
+                table_name, record_id, schema
             )
             if not db_record:
                 raise Exception(f"Record not found.")
@@ -1260,12 +1265,13 @@ def patch_permission(request, table_name, **kwargs):
 
 
 def delete_permission(request, table_name, **kwargs):
+    schema = get_validated_schema(kwargs) or 'public'
     object_row = get_object_details(table_name, **kwargs)
     cursor = connection.cursor()
     if not object_row:
         log_audit(f'Deleted record in {table_name}', 'Deleted', **kwargs)
         if kwargs.get('setup_check', True):
-            if profile_has_admin_access(kwargs.get('profile_id'), kwargs.get('schema')):
+            if profile_has_admin_access(kwargs.get('profile_id'), schema):
                 return delete_data_sql(table_name, kwargs.get('ids'), **kwargs)
             else:
                 raise Exception(f'Access Denied for the action. Please contact your administrator.')
@@ -1277,22 +1283,22 @@ def delete_permission(request, table_name, **kwargs):
 
     # Step 1: Get access level from sharing_records (Phase 2.B — single helper).
     access_level = (
-        get_object_access_level(object_id, kwargs.get('schema'))
+        get_object_access_level(object_id, schema)
         or DEFAULT_OBJECT_ACCESS_LEVEL
     )
 
     user_id = kwargs.get('user_', {}).get('id')
-    shared_recs = fetch_shared_records(user_id, table_name, kwargs.get('schema'), type='delete')
+    shared_recs = fetch_shared_records(user_id, table_name, schema, type='delete')
 
     if not has_object_permission and not shared_recs:
         raise Exception(f"Access to {object_label} is denied for this user.")
 
     # Build sets for per-record access checks
-    ids = get_all_subordinate_ids(user_id, kwargs.get('schema')) if has_object_permission else []
+    ids = get_all_subordinate_ids(user_id, schema) if has_object_permission else []
     delete_shared_ids = {str(r.get('record_id')) for r in shared_recs if r.get('record_id')}
 
     # Detect records explicitly shared without delete access
-    all_shared_recs = fetch_shared_records(user_id, table_name, kwargs.get('schema'), type='read')
+    all_shared_recs = fetch_shared_records(user_id, table_name, schema, type='read')
     all_shared_ids = {str(r.get('record_id')) for r in all_shared_recs if r.get('record_id')}
     no_delete_shared_ids = all_shared_ids - delete_shared_ids
 
@@ -1303,7 +1309,7 @@ def delete_permission(request, table_name, **kwargs):
     with transaction.atomic():
         for record_id in record_ids:
             record_data = _lock_record_for_update(
-                table_name, record_id, kwargs.get('schema', 'public')
+                table_name, record_id, schema
             )
             if not record_data:
                 raise Exception(f"Record with id={record_id} not found in {table_name}.")
