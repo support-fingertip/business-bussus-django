@@ -8,6 +8,10 @@ from api.BL.blcontroller import BusinessLogicHandler
 from public.auth.session import get_connection_and_user_details
 from public.utils.exists import error_record
 from ..notifications.notify import get_admin, trigger_notication
+from api.security.schema_authority import (
+    TenantViolation,
+    pin_request_tenant,
+)
 from channels.layers import get_channel_layer
 
 logger = logging.getLogger(__name__)
@@ -24,7 +28,7 @@ def _safe_500(exc, request, action):
             "user_id": getattr(getattr(request, "user_", None) or {}, "get",
                                lambda *_: None)("id") if isinstance(
                 getattr(request, "user_", None), dict) else None,
-            "schema": getattr(request, "schema", None),
+            "schema": getattr(request, "tenant_schema", None) or getattr(request, "schema", None),
             "path": getattr(request, "path", None),
         },
     )
@@ -43,22 +47,48 @@ class Dispatcher(APIView):
         self.channel = get_channel_layer()
 
     def _init_request_context(self, request):
-        """Attach browser and user/org details into request"""
+        """Attach browser and user/org details into request.
+
+        Tenant resolution is gated through ``pin_request_tenant``: the
+        JWT-asserted org/schema/profile values are reconciled against the
+        database before any downstream layer sees them. ``request.tenant_*``
+        attributes are the canonical, trusted source from this point on.
+        """
         user_agent = request.META.get("HTTP_USER_AGENT", "").lower()
         request.request_from_browser = any(
             browser in user_agent for browser in ["mozilla", "chrome", "safari", "edge"]
-        )            
-        # Get connection and user details
-        user, org, connection, profile_id, schema, referer = get_connection_and_user_details(request)
-        
-        # Attach user-related details to the request
+        )
+        # Get connection and user details from the session/JWT payload.
+        # Treat the schema/org/profile here as ASSERTED — never trusted
+        # until pin_request_tenant has reconciled them with the DB.
+        user, org, db_connection, asserted_profile_id, asserted_schema, referer = (
+            get_connection_and_user_details(request)
+        )
+
         request.user_ = user
         if request.user_ and not request.user_.get("is_active", True):
             raise PermissionError("User account is inactive.")
+
+        # Reconcile (user, org, schema, profile_id) against the DB. Any
+        # cross-tenant mismatch raises TenantViolation (PermissionError),
+        # which the view methods convert to a 403.
+        user_id = (request.user_ or {}).get("id")
+        asserted_org_id = (org or {}).get("id") if isinstance(org, dict) else None
+        ctx = pin_request_tenant(
+            request,
+            user_id=user_id,
+            asserted_org_id=asserted_org_id,
+            asserted_schema=asserted_schema,
+            asserted_profile_id=asserted_profile_id,
+        )
+
+        # Keep the legacy attribute names populated for callers that still
+        # read `request.schema` / `request.profile_id`. Newly written code
+        # should read `request.tenant_schema` / `request.tenant_profile_id`.
         request.org = org
-        request.connection = connection
-        request.profile_id = profile_id
-        request.schema = schema
+        request.connection = db_connection
+        request.profile_id = ctx.profile_id
+        request.schema = ctx.schema
         request.referer = referer
 
     def _init_handler(self, request, object_name):
