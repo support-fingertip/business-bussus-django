@@ -136,36 +136,9 @@ _STATE_OPERATIONS = [
             "managed": False,
         },
     ),
-    migrations.CreateModel(
-        name="Role",
-        fields=[
-            ("id", models.CharField(max_length=64, primary_key=True, serialize=False)),
-            ("name", models.CharField(max_length=255)),
-            ("description", models.TextField(blank=True, null=True)),
-            ("created_by_id", models.CharField(blank=True, max_length=64, null=True)),
-            ("last_modified_by_id", models.CharField(blank=True, max_length=64, null=True)),
-            ("created_date", models.DateTimeField(blank=True, null=True)),
-            ("last_modified_date", models.DateTimeField(blank=True, null=True)),
-            (
-                "parent_role",
-                models.ForeignKey(
-                    blank=True,
-                    db_column="parent_role_id",
-                    db_constraint=False,
-                    null=True,
-                    on_delete=models.deletion.DO_NOTHING,
-                    related_name="children",
-                    to="api.role",
-                ),
-            ),
-        ],
-        options={
-            "verbose_name": "Role",
-            "verbose_name_plural": "Roles",
-            "db_table": "roles",
-            "managed": False,
-        },
-    ),
+    # Role model removed — registry row 'roles' is vestigial (no DDL,
+    # no runtime queries). Re-add this CreateModel alongside the DDL
+    # if/when the role-hierarchy feature ships.
     migrations.CreateModel(
         name="UserGroup",
         fields=[
@@ -393,45 +366,10 @@ _STATE_OPERATIONS = [
             "unique_together": {("object",)},
         },
     ),
-    migrations.CreateModel(
-        name="OrganizationWideDefault",
-        fields=[
-            ("id", models.CharField(max_length=64, primary_key=True, serialize=False)),
-            (
-                "access_level",
-                models.CharField(
-                    choices=[
-                        ("Private", "Private"),
-                        ("Public Read Only", "Public Read Only"),
-                        ("Public Read Write", "Public Read Write"),
-                    ],
-                    default="Private",
-                    max_length=32,
-                ),
-            ),
-            ("created_by_id", models.CharField(blank=True, max_length=64, null=True)),
-            ("last_modified_by_id", models.CharField(blank=True, max_length=64, null=True)),
-            ("created_date", models.DateTimeField(blank=True, null=True)),
-            ("last_modified_date", models.DateTimeField(blank=True, null=True)),
-            (
-                "object",
-                models.ForeignKey(
-                    db_column="object_id",
-                    db_constraint=False,
-                    on_delete=models.deletion.DO_NOTHING,
-                    related_name="owd_entries",
-                    to="api.platformobject",
-                ),
-            ),
-        ],
-        options={
-            "verbose_name": "Organization-Wide Default",
-            "verbose_name_plural": "Organization-Wide Defaults",
-            "db_table": "owd",
-            "managed": False,
-            "unique_together": {("object",)},
-        },
-    ),
+    # OrganizationWideDefault model removed — 'owd' has no DDL anywhere
+    # in the repo and no runtime queries. Phase 2.A.1 default-deny work
+    # uses sharing_records exclusively. Re-add alongside the DDL if/when
+    # an OWD feature ships.
 ]
 
 

@@ -1,4 +1,27 @@
-"""``sharing_records`` and ``owd`` — record-sharing and OWD."""
+"""``sharing_records`` — per-object default sharing posture.
+
+Naming note (important — see ADR-0003 follow-up):
+
+  - ``sharing_records``  ← THIS module. PER-OBJECT default access
+                            level (Private / Public Read Only /
+                            Public Read Write). One row per object.
+                            The absence of a row means PRIVATE
+                            (default-deny — Phase 2.A.1).
+
+  - ``shared_records``   ← DIFFERENT TABLE in the same tenant schema.
+                            PER-RECORD ad-hoc shares with TTL
+                            (record_id + user_id + access_mask +
+                            expires_at). Lives in
+                            ``api/permissions/FetchUsers/fetch_shared_records.py``.
+
+These two tables sound nearly identical and they are NOT the same.
+Don't conflate them when writing queries or new code.
+
+(``owd`` was originally part of Wave 2 but the table has no DDL
+anywhere in the repo and zero runtime queries. The model was removed
+in Phase 2 ORM Wave 2 cleanup. If/when an Org-Wide-Default feature
+ships, reintroduce the model alongside the DDL.)
+"""
 
 from __future__ import annotations
 
@@ -22,10 +45,13 @@ ACCESS_LEVEL_CHOICES = [
 
 
 class SharingRecord(TenantModel):
-    """``sharing_records`` — per-object default sharing posture.
+    """``sharing_records`` — per-OBJECT default sharing posture.
 
-    One row per object; the absence of a row now means PRIVATE
+    One row per object; the absence of a row means PRIVATE
     (default-deny — see Phase 2.A.1).
+
+    NOT to be confused with ``shared_records`` (per-RECORD ad-hoc
+    grants). See module docstring.
     """
 
     id = models.CharField(max_length=64, primary_key=True)
@@ -48,48 +74,10 @@ class SharingRecord(TenantModel):
 
     class Meta(TenantModel.Meta):
         db_table = "sharing_records"
-        verbose_name = "Sharing Record"
-        verbose_name_plural = "Sharing Records"
+        verbose_name = "Sharing Record (per-object default)"
+        verbose_name_plural = "Sharing Records (per-object defaults)"
         # One sharing posture per object — the legacy schema is keyed
         # this way even if a UNIQUE constraint isn't always present.
-        unique_together = (("object",),)
-
-    def __str__(self) -> str:
-        return f"{self.object_id}: {self.access_level}"
-
-
-class OrganizationWideDefault(TenantModel):
-    """``owd`` — org-wide default access table (legacy-named singleton-ish).
-
-    Each row maps an object to a default access level — semantically the
-    same shape as ``sharing_records`` but kept as a separate table for
-    historical reasons. Phase 2 documents both; the merge is a Phase 4
-    candidate.
-    """
-
-    id = models.CharField(max_length=64, primary_key=True)
-    object = models.ForeignKey(
-        PlatformObject,
-        db_column="object_id",
-        related_name="owd_entries",
-        on_delete=models.DO_NOTHING,
-        db_constraint=False,
-    )
-    access_level = models.CharField(
-        max_length=32,
-        choices=ACCESS_LEVEL_CHOICES,
-        default=ACCESS_LEVEL_PRIVATE,
-    )
-
-    created_by_id = models.CharField(max_length=64, null=True, blank=True)
-    last_modified_by_id = models.CharField(max_length=64, null=True, blank=True)
-    created_date = models.DateTimeField(null=True, blank=True)
-    last_modified_date = models.DateTimeField(null=True, blank=True)
-
-    class Meta(TenantModel.Meta):
-        db_table = "owd"
-        verbose_name = "Organization-Wide Default"
-        verbose_name_plural = "Organization-Wide Defaults"
         unique_together = (("object",),)
 
     def __str__(self) -> str:

@@ -14,7 +14,6 @@ from api.tenant_models import (  # noqa: F401  (re-exported for app discovery)
     PlatformObject,
     Field,
     Profile,
-    Role,
     UserGroup,
     UserGroupUser,
     ObjectPermission,
@@ -22,7 +21,6 @@ from api.tenant_models import (  # noqa: F401  (re-exported for app discovery)
     TabPermission,
     AppPermission,
     SharingRecord,
-    OrganizationWideDefault,
 )
 
 def organization_logo_path(instance, filename):

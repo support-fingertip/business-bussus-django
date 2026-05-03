@@ -1,5 +1,10 @@
-"""Authorization core: ``profile``, ``roles``, ``user_group``,
-``user_group_users``."""
+"""Authorization core: ``profile``, ``user_group``, ``user_group_users``.
+
+Note: ``roles`` was originally part of Wave 2 but has been removed —
+the table has no DDL anywhere in the repo and is referenced by zero
+runtime queries. If/when the role-hierarchy feature is built, the
+``Role`` model can be reintroduced alongside the DDL.
+"""
 
 from __future__ import annotations
 
@@ -35,36 +40,6 @@ class Profile(TenantModel):
 
     def __str__(self) -> str:
         return f"{self.name} [{self.profile_type}]"
-
-
-class Role(TenantModel):
-    """``roles`` — role hierarchy (parent → children)."""
-
-    id = models.CharField(max_length=64, primary_key=True)
-    name = models.CharField(max_length=255)
-    description = models.TextField(null=True, blank=True)
-    parent_role = models.ForeignKey(
-        "self",
-        db_column="parent_role_id",
-        related_name="children",
-        on_delete=models.DO_NOTHING,
-        db_constraint=False,
-        null=True,
-        blank=True,
-    )
-
-    created_by_id = models.CharField(max_length=64, null=True, blank=True)
-    last_modified_by_id = models.CharField(max_length=64, null=True, blank=True)
-    created_date = models.DateTimeField(null=True, blank=True)
-    last_modified_date = models.DateTimeField(null=True, blank=True)
-
-    class Meta(TenantModel.Meta):
-        db_table = "roles"
-        verbose_name = "Role"
-        verbose_name_plural = "Roles"
-
-    def __str__(self) -> str:
-        return self.name
 
 
 class UserGroup(TenantModel):

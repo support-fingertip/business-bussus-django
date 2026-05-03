@@ -31,11 +31,12 @@ OBJECTS_SQL = REPO_ROOT / "sqlfiles" / "objects.sql"
 
 
 # Mapping: Django model class name -> expected db_table name.
+# Role and OrganizationWideDefault were removed — see authz.py / sharing.py
+# module docstrings for the rationale (vestigial registry rows).
 EXPECTED_DB_TABLES = {
     "PlatformObject": "object",
     "Field": "fields",
     "Profile": "profile",
-    "Role": "roles",
     "UserGroup": "user_group",
     "UserGroupUser": "user_group_users",
     "ObjectPermission": "object_permissions",
@@ -43,7 +44,6 @@ EXPECTED_DB_TABLES = {
     "TabPermission": "tab_permissions",
     "AppPermission": "app_permissions",
     "SharingRecord": "sharing_records",
-    "OrganizationWideDefault": "owd",
 }
 
 

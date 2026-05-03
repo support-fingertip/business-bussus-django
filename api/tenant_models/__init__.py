@@ -32,7 +32,6 @@ the ``api`` app — see ADR-0001 for why we don't split apps.
 from api.tenant_models.objects import PlatformObject, Field
 from api.tenant_models.authz import (
     Profile,
-    Role,
     UserGroup,
     UserGroupUser,
 )
@@ -42,10 +41,7 @@ from api.tenant_models.permissions import (
     TabPermission,
     AppPermission,
 )
-from api.tenant_models.sharing import (
-    SharingRecord,
-    OrganizationWideDefault,
-)
+from api.tenant_models.sharing import SharingRecord
 
 
 __all__ = [
@@ -54,7 +50,6 @@ __all__ = [
     "Field",
     # Authorization core
     "Profile",
-    "Role",
     "UserGroup",
     "UserGroupUser",
     # Permissions
@@ -64,5 +59,4 @@ __all__ = [
     "AppPermission",
     # Sharing
     "SharingRecord",
-    "OrganizationWideDefault",
 ]
