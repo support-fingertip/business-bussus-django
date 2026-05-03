@@ -1,0 +1,34 @@
+{
+  "base_url": "http://localhost:8000",
+  "frontend_url": "",
+
+  "test_username": "admin@example.com",
+  "test_password": "ChangeMe123!",
+
+  "admin_username": "",
+  "admin_password": "",
+
+  "new_user_email_prefix": "qa.testuser",
+  "new_user_email_domain": "example.com",
+  "new_user_password": "TempPass!2345",
+  "new_user_profile_id": "",
+
+  "crud_object": "task",
+  "crud_create_payload": {
+    "subject": "API smoke test",
+    "status": "Open",
+    "priority": "Low"
+  },
+  "crud_update_payload": {
+    "subject": "API smoke test (updated)",
+    "priority": "High"
+  },
+
+  "suites": ["all"],
+  "stop_on_failure": false,
+  "verbose": false,
+  "keep_created": false,
+  "timeout": 30,
+  "log_dir": "./logs",
+  "report_json": ""
+}
