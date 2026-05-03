@@ -12,6 +12,10 @@ from api.security.schema_authority import (
     TenantViolation,
     pin_request_tenant,
 )
+from api.security.object_whitelist import (
+    ObjectNotAllowed,
+    assert_allowed,
+)
 from channels.layers import get_channel_layer
 
 logger = logging.getLogger(__name__)
@@ -94,6 +98,14 @@ class Dispatcher(APIView):
     def _init_handler(self, request, object_name):
         """Initialize BL handler after context is set"""
         self._init_request_context(request)
+        # Reject unknown route/object names BEFORE the BL layer runs. The
+        # whitelist consults the per-tenant object registry plus a small
+        # hard-coded list of reserved BL routes; anything else 404s.
+        try:
+            assert_allowed(object_name, request.tenant_schema, kind="object_name")
+        except ObjectNotAllowed:
+            from rest_framework.exceptions import NotFound
+            raise NotFound(detail="Resource not found.")
         return BusinessLogicHandler(request, object_name)
 
     # Send notification to admin
