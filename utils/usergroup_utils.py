@@ -134,7 +134,7 @@ def patch_user_group(update_data, **kwargs):
     Custom patch function to update user_group fields and sync users, profiles, and public groups.
     """
     group_id = update_data.get('id')
-    schema = kwargs.get('schema')
+    schema = get_validated_schema(kwargs)
     if not group_id:
         raise Exception("Missing 'id' in update data")
 
@@ -257,6 +257,7 @@ def patch_user_group(update_data, **kwargs):
 
 from django.db import connection, DatabaseError
 from api.permissions.permissions import get_permissions
+from api.security.schema_authority import get_validated_schema
 
 
 def get_permissions_with_users(request, table_name, **kwargs):
@@ -264,7 +265,7 @@ def get_permissions_with_users(request, table_name, **kwargs):
     result = get_permissions(request, **kwargs)
 
     if table_name == "user_group":
-        schema = kwargs.get('schema')
+        schema = get_validated_schema(kwargs)
 
         for record in result.get("data", []):
             try:

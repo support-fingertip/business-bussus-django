@@ -17,6 +17,7 @@ from api.ORM.sqlFunctions.createSQLFunction import (
     ensure_leads_name_not_unique,
 )
 from api.ORM.sqlFunctions.utils.helpers import validate_identifier
+from api.security.schema_authority import get_validated_schema
 from psycopg2 import sql
 from psycopg2.extras import Json, execute_values
 
@@ -78,11 +79,11 @@ def log_field_history(object_name, record_id, field_name, old_value, new_value, 
 
 
 def log_field_changes_sql(object_name, table_name, pk, updated_fields, user_id=None, **kwargs):
-    schema = kwargs.get('schema', 'public')
+    schema = (get_validated_schema(kwargs) or 'public')
     tracked_fields = get_tracked_fields(object_name, schema=schema)
     changes = []
 
-    current = get_instance_by_id(table_name, pk, schema=kwargs.get('schema', 'public'))
+    current = get_instance_by_id(table_name, pk, schema=(get_validated_schema(kwargs) or 'public'))
     if not current:
         return []
 
@@ -284,7 +285,7 @@ def record_field_changes(object_name, pk, updated_fields, tracked_fields, curren
 def updateRawSQL(object_name, editable_fields=None, section=None, **kwargs):
     user = kwargs.get('user_', {})
     user_id = user.get('id')
-    schema = kwargs.get('schema')
+    schema = get_validated_schema(kwargs)
     documents = kwargs.get('update_data')
     fields_metadata = kwargs.get('fields_metadata', [])
     transfer = kwargs.get('transfer', False)

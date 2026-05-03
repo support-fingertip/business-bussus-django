@@ -42,6 +42,7 @@ from django.utils.html import strip_tags
 
 from api.ORM.sqlFunctions.createSQLFunction import post_data_sql
 from api.emailsend.views import send_test_email
+from api.security.schema_authority import get_validated_schema
 from api.workflows.create_records import create_record
 from api.workflows.update_records import update_record
 
@@ -121,7 +122,7 @@ def execute_workflows(obj: Dict[str, Any], module: str, trigger: str, **kwargs) 
     Returns an authurl dict if email auth is required, otherwise None.
     """
     user = kwargs.get('user_')
-    schema = kwargs.get('schema')
+    schema = get_validated_schema(kwargs)
 
     previous_search_path = _set_search_path(schema)
 

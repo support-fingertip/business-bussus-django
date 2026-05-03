@@ -5,9 +5,10 @@ from django.db import transaction, connection
 from api.ORM.AuditLogs.audit_trail_logs import log_audit
 from api.ORM.setup.ObjectManager.field_execution import add_field_to_table
 from api.formulas.formula_validation import validate_formula_syntax
+from api.security.schema_authority import get_validated_schema
 
 def create_field(data, user=None, section=None, **kwargs):
-    schema = kwargs.get('schema', 'public')
+    schema = (get_validated_schema(kwargs) or 'public')
     field = data.get('field')
     profiles = data.get('profiles')
     pagelayouts = data.get('page_layouts')

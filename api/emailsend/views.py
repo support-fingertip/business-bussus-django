@@ -49,7 +49,7 @@ def send_test_email(request, data, **kwargs):
         record_ids = list(dict.fromkeys(data.get("record_ids", [])))
         cc_raw = data.get("cc", [])
         cc = [str(e).strip() for e in cc_raw if e]
-        schema = kwargs.get("schema")
+        schema = get_validated_schema(kwargs)
         user_ctx = kwargs.get("user_", {}) or {}
         sender_email = user_ctx.get("email")
         user_id = user_ctx.get("id")
@@ -364,6 +364,7 @@ class GmailOAuthCallbackView(APIView):
 # api/emailsend/views.py
 import urllib.parse
 import os
+from api.security.schema_authority import get_validated_schema
 
 
 CLIENT_ID = os.getenv("OUTLOOK_CLIENT_ID")

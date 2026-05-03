@@ -11,6 +11,7 @@ import json
 from api.ORM.AuditLogs.audit_trail_logs import log_audit
 from api.ORM.sqlFunctions.utils.error_handlers import explain_db_error
 from api.ORM.sqlFunctions.utils.helpers import validate_identifier
+from api.security.schema_authority import get_validated_schema
 from psycopg2.extensions import cursor as PgCursor
 
 
@@ -694,7 +695,7 @@ def validate_and_resolve_lookups_cached(item, lookup_fields, cache, cursor):
 #     return f"{prefix}_{uuid.uuid4().hex[:9]}"
 
 def insert_related_child_records(cursor:PgCursor, parent_table, parent_id, child_tables, user=None, **kwargs):
-    schema = kwargs.get('schema', 'public')
+    schema = (get_validated_schema(kwargs) or 'public')
     for child_info in child_tables:
         child_table = child_info.get("table")
         records = child_info.get("records", [])
@@ -777,7 +778,7 @@ def get_field_type_map(cursor, table_name):
 
 def post_data_sql(table_name, data, prefix='GEN', section=None, **kwargs):
     user = kwargs.get('user_')
-    schema = kwargs.get('schema')
+    schema = get_validated_schema(kwargs)
     # Only run lookup validation for object-level calls (not setup APIs)
     enable_lookup_validation = kwargs.get('enable_lookup_validation', False)
     if not schema:

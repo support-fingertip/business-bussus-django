@@ -1,4 +1,5 @@
 import re
+from api.security.schema_authority import get_validated_schema
 
 from django.db import connection
 from psycopg2 import sql
@@ -62,7 +63,7 @@ def get_related_tasks(**kwargs):
         params.append(object_id)
     else:
         return []
-    schema = _validate_schema(kwargs.get('schema', 'public'))
+    schema = _validate_schema((get_validated_schema(kwargs) or 'public'))
     with connection.cursor() as cursor:
         cursor.execute(sql.SQL("SET search_path TO {schema}").format(schema=sql.Identifier(schema)))
         cursor.execute(base_query, params)
@@ -169,7 +170,7 @@ def user_can_make_call(**kwargs):
     try:
         user_id = kwargs.get("user_", {}).get("id")
         profile = kwargs.get("profile_id")
-        schema = _validate_schema(kwargs.get("schema", "public"))
+        schema = _validate_schema((get_validated_schema(kwargs) or 'public'))
         telephony_grp = kwargs.get("telephony_grp")
 
         if not user_id or not telephony_grp:

@@ -12,10 +12,11 @@ from utils.prefix_generator import get_prefix
 from utils.string_converters import validate_name
 from .initial_fields import initial_fields
 from api.ORM.setup.utils.create_dynamic_table import create_dynamic_table
+from api.security.schema_authority import get_validated_schema
 
 def post_customobject(data, **kwargs):
     name = data.get("name")
-    schema_name = kwargs.get("schema", "public")
+    schema_name = (get_validated_schema(kwargs) or 'public')
     validate_name(name)
     datatype = data.get("datatype", "text")
     try:
@@ -24,7 +25,7 @@ def post_customobject(data, **kwargs):
         prefix = get_prefix(name)
 
         with connection.cursor() as cursor:
-            cursor.execute("SET search_path TO %s", [kwargs.get('schema')])
+            cursor.execute("SET search_path TO %s", [get_validated_schema(kwargs)])
             cursor.execute("SELECT COUNT(*) FROM object WHERE name = %s", [name])
             if cursor.fetchone()[0] > 0:
                 raise Exception(f"Object '{name}' already exists.")
@@ -36,7 +37,7 @@ def post_customobject(data, **kwargs):
 
         with transaction.atomic():
             with connection.cursor() as cursor:
-                cursor.execute("SET search_path TO %s", [kwargs.get('schema')])
+                cursor.execute("SET search_path TO %s", [get_validated_schema(kwargs)])
                 cursor.execute("SELECT id FROM profile")
                 profile_ids = [row[0] for row in cursor.fetchall()]
                 object_uid = uuid.uuid4().hex[:10]                

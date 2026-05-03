@@ -5,13 +5,14 @@ from psycopg2 import sql
 
 from api.ORM.AuditLogs.audit_trail_logs import log_audit
 from api.ORM.sqlFunctions.utils.helpers import validate_identifier
+from api.security.schema_authority import get_validated_schema
 
 logger = logging.getLogger(__name__)
 
 
 def delete_customobject(name, **kwargs):
     """Delete a custom object and all related records using safe SQL."""
-    schema = kwargs.get("schema", "public")
+    schema = (get_validated_schema(kwargs) or 'public')
 
     if not name:
         raise Exception("Object name is required.")

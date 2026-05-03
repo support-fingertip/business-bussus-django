@@ -1,3 +1,4 @@
+from api.security.schema_authority import get_validated_schema
 from django.db import connection
 from django.db import transaction
 
@@ -34,7 +35,7 @@ from django.db import transaction
 
 def get_field_tracking_data(object_name, **kwargs):
     result = []
-    schema = kwargs.get('schema', 'public')
+    schema = (get_validated_schema(kwargs) or 'public')
 
     with connection.cursor() as cursor:
         cursor.execute("SET search_path TO %s", [schema])
@@ -80,7 +81,7 @@ def update_tracked_fields(object_name, selected_field_ids,**kwargs):
     if not isinstance(selected_field_ids, list):
         raise Exception("'tracked_fields' must be a list of field IDs.")
 
-    schema = kwargs.get('schema', 'public')
+    schema = (get_validated_schema(kwargs) or 'public')
 
     with transaction.atomic():
         with connection.cursor() as cursor:

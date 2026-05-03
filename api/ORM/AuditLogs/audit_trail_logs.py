@@ -1,3 +1,4 @@
+from api.security.schema_authority import get_validated_schema
 
 from django.db import connection
 def get_instance_label(instance):
@@ -38,7 +39,7 @@ def log_audit_sql(cursor, user_id, action, section, prefix=None, is_delegate=Fal
 def log_audit(action, section, is_delegate=False, prefix=None, **kwargs):
     user_id = kwargs.get('user_',{}).get('id')
     with connection.cursor() as cursor:
-        cursor.execute("""SET search_path TO %s""", [kwargs.get('schema', 'public')])
+        cursor.execute("""SET search_path TO %s""", [(get_validated_schema(kwargs) or 'public')])
         try:
             insert_query = """
                 INSERT INTO audit_trail_track (user_id, action, section, source_namespace_prefix, is_delegate_user, changed_at)

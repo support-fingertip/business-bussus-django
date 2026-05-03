@@ -6,6 +6,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow,Flow
 from api.telephony.views import run_query
 from typing import Literal
 from api.BL.utils import JWTHandler
+from api.security.schema_authority import get_validated_schema
 from api.security.token_encryption import (
     decrypt_token,
     encrypt_token,
@@ -22,7 +23,7 @@ request:Request
 
 def authenticate(user_id,**kwargs):
     creds = None
-    schema = kwargs.get("schema","public")
+    schema = (get_validated_schema(kwargs) or 'public')
     creds,userInfo = get_user_gmail_credentials(user_id=user_id,provider="gmail",schema=schema)
     # If credentials are not valid, re-authenticate
     if not creds or not creds.valid:
@@ -31,7 +32,7 @@ def authenticate(user_id,**kwargs):
         else:
             try:
                 jwt_handler = JWTHandler()
-                data = {"user_id": user_id,"provider": "gmail","schema": kwargs.get("schema","public"), "exp": now().timestamp() + 300}
+                data = {"user_id": user_id,"provider": "gmail","schema": (get_validated_schema(kwargs) or 'public'), "exp": now().timestamp() + 300}
                 token = jwt_handler.encrypt(data,expires_in_hours=0.0833)
                 redirect_uri = os.getenv("REDIRECT_URL","")
                 print(f"Generated JWT for authentication flow: {token}")

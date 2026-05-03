@@ -1,4 +1,5 @@
 from api.permissions.permissions import get_permissions
+from api.security.schema_authority import get_validated_schema
 from django.db import connection
 
 from pprint import pprint
@@ -43,7 +44,7 @@ def PageLayouts(request, **kwargs):
     if object_name_ and not id and not created:
         result = get_permissions(request, tableName='page_layouts', where = [{"field": "object_name", "operator": "=", "value": object_name_}],fields=['name', 'label','created_by','created_date','last_modified_date'], **kwargs)
         try:
-            schema = kwargs.get('schema', 'public')
+            schema = (get_validated_schema(kwargs) or 'public')
             for record in result.get('data', []):
                 with connection.cursor() as cursor:
                     cursor.execute("SET search_path TO %s", [schema])

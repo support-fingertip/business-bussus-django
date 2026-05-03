@@ -1,5 +1,6 @@
 import logging
 import re
+from api.security.schema_authority import get_validated_schema
 from functools import lru_cache
 
 from django.db import connection
@@ -107,7 +108,7 @@ def _cached_child_fields(schema: str, parent_object: str) -> tuple:
 
 def build_relationships_dynamic(input_dict: dict, **kwargs) -> dict:
     root_table = _validate_identifier(input_dict.get("tableName", ""), "table name")
-    schema     = _validate_schema(kwargs.get("schema", ""))
+    schema     = _validate_schema((get_validated_schema(kwargs) or ""))
     relationships: dict = {}
 
     # ── Relationship name fuzzy matching ──────────────────────────────────────
@@ -289,7 +290,7 @@ def build_relationships_dynamic(input_dict: dict, **kwargs) -> dict:
 
 def get_lookup_relationships(table: str, **kwargs) -> list[dict]:
     table  = _validate_identifier(table, "table")
-    schema = _validate_schema(kwargs.get("schema", ""))
+    schema = _validate_schema((get_validated_schema(kwargs) or ""))
     with connection.cursor() as cursor:
         _set_search_path(cursor, schema)          # BUG-1 + BUG-2 fixed
         cursor.execute(
@@ -378,7 +379,7 @@ def find_relationship_paths(
 
 
 def get_object_types(**kwargs) -> dict:
-    schema = _validate_schema(kwargs.get("schema", ""))
+    schema = _validate_schema((get_validated_schema(kwargs) or ""))
     with connection.cursor() as cursor:
         _set_search_path(cursor, schema)          # BUG-1 + BUG-2 fixed
         cursor.execute("SELECT name, type FROM object")

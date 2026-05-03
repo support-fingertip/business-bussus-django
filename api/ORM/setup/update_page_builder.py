@@ -3,6 +3,7 @@ import json
 
 from CacheService.cache import CacheService
 from api.ORM.AuditLogs.audit_trail_logs import log_audit
+from api.security.schema_authority import get_validated_schema
 
 def update_page_builder(data, **kwargs):
     try:
@@ -22,9 +23,9 @@ def update_page_builder(data, **kwargs):
             raise ValueError("Missing 'layout' in 'page_builder'.")
 
         page_id = page_builder.get('id')
-        CacheService().invalidate_by_id(page_id, "page_builder", kwargs.get('schema'))
+        CacheService().invalidate_by_id(page_id, "page_builder", get_validated_schema(kwargs))
         with connection.cursor() as cursor, transaction.atomic():
-            cursor.execute("SET search_path TO %s;", [kwargs.get('schema')])
+            cursor.execute("SET search_path TO %s;", [get_validated_schema(kwargs)])
             cursor.execute(
                 """
                 UPDATE page_builder SET

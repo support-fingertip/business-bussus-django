@@ -20,6 +20,7 @@ from api.permissions.permissions import (
     delete_permission,
     patch_permission,
 )
+from api.security.schema_authority import get_validated_schema
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +44,7 @@ def permanently_delete_records(records, **kwargs):
         raise Exception("No records provided for permanent delete.")
 
     delete_summary = {}
-    schema = kwargs.get("schema", "public")
+    schema = (get_validated_schema(kwargs) or 'public')
     request = kwargs.get("request")
 
     for rec in records:
@@ -99,7 +100,7 @@ def permanently_delete_records(records, **kwargs):
 
 def empty_recycle_bin(**kwargs):
     delete_summary = {}
-    schema = kwargs.get("schema", "public")
+    schema = (get_validated_schema(kwargs) or 'public')
     request = kwargs.get("request")
 
     with connection.cursor() as cursor:
@@ -156,7 +157,7 @@ def empty_recycle_bin(**kwargs):
 
 
 def get_deleted_records(**kwargs):
-    schema = kwargs.get("schema", "public")
+    schema = (get_validated_schema(kwargs) or 'public')
     deleted_data = {}
 
     with connection.cursor() as cursor:
@@ -264,7 +265,7 @@ def restore_soft_deleted_records(records, **kwargs):
     if not records:
         raise Exception("No records provided for restore.")
 
-    schema = kwargs.get("schema", "public")
+    schema = (get_validated_schema(kwargs) or 'public')
     request = kwargs.get("request")
     restored_summary = {}
 

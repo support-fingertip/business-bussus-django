@@ -7,6 +7,7 @@ from api.BL.computed_fields import (
     apply_computed_fields_to_records,
     separate_computed_filters,
 )
+from api.security.schema_authority import get_validated_schema
 from django.db import connection
 
 
@@ -76,7 +77,7 @@ def _compute_widget_data(request, component, limit=None, offset=None, **kwargs):
     if not data_source:
         return []
 
-    schema = kwargs.get("schema", "public")
+    schema = (get_validated_schema(kwargs) or 'public')
     filters = component.get("filters") or []
     metric_config = component.get("metric_config") or {}
     chart_config = component.get("chart_config") or {}
@@ -294,7 +295,7 @@ def get_dashboards(request, id=None, **kwargs):
                             })
                 dashboard["widgets"] = enriched_components
                 enriched_dashboards.append(dashboard)
-            cache.set('dash_123', enriched_dashboards, "dashboard", kwargs.get('schema'))  # Cache for 5 minutes
+            cache.set('dash_123', enriched_dashboards, "dashboard", get_validated_schema(kwargs))  # Cache for 5 minutes
         # Return single dashboard or full list
         if id:
             for d in enriched_dashboards:

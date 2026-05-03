@@ -62,6 +62,7 @@ from django.db import connection, transaction
 
 from api.ORM.setup.workflows.create_workflow import get_fields_metadata
 from api.formulas.formula_validation import validate_formula
+from api.security.schema_authority import get_validated_schema
 
 # ── identifier safety ────────────────────────────────────────────────────────
 _IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -87,7 +88,7 @@ def update_workflow(request, update_data: dict, **kwargs) -> dict:
         module_name = _validate_identifier(
             workflow_data.get("module_name"), "module_name"
         )
-        schema = kwargs.get("schema")
+        schema = get_validated_schema(kwargs)
         if not schema:
             raise ValueError("Schema is required.")
         _validate_identifier(schema, "schema")   # SEC-02: validate before any use

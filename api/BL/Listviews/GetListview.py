@@ -8,6 +8,7 @@ from utils.access_level_filter import add_private_owner_filter
 from api.permissions.FetchUsers.fetch_shared_records import fetch_shared_records
 from utils.target_item_filters import enrich_target_item_with_assigned_to
 from api.BL.computed_fields import process_computed_fields_for_report, apply_computed_fields_to_records, separate_computed_filters, apply_computed_filters
+from api.security.schema_authority import get_validated_schema
 from django.db import connection
 from pprint import pprint
 
@@ -205,7 +206,7 @@ def GetListviews(request, **kwargs):
     visible_columns = normalize_visible_columns(
         visible_columns,
         another_object,
-        kwargs.get("schema"),
+        get_validated_schema(kwargs),
     )
 
     required_fields_param = request.GET.get('required_fields', '')
@@ -233,7 +234,7 @@ def GetListviews(request, **kwargs):
     combined_filters = append_and_filter(combined_filters, is_deleted_filter)
 
     # Keep converted leads in DB, but hide them from Leads module listings.
-    if another_object in ('lead', 'leads') and is_column_exist(kwargs.get('schema'), 'leads', 'is_converted'):
+    if another_object in ('lead', 'leads') and is_column_exist(get_validated_schema(kwargs), 'leads', 'is_converted'):
         converted_filter = {'field': 'is_converted', 'value': False, 'operator': '='}
         combined_filters = append_and_filter(combined_filters, converted_filter)
 
@@ -242,7 +243,7 @@ def GetListviews(request, **kwargs):
     profile = get_permissions(request, tableName='profile', where=[{'field': 'id', 'value': kwargs.get('profile_id'), 'operator': '='}], **kwargs).get('data')[0]
     if profile.get('profile_type') != 'admin':
         user_id = kwargs.get('user_', {}).get('id')
-        schema = kwargs.get('schema')
+        schema = get_validated_schema(kwargs)
         if another_object == 'task':
             user_filter = {'field': 'assigned_to_id', 'value': user_id, 'operator': '='}
             if isinstance(combined_filters, dict) and 'and' in combined_filters:
@@ -268,7 +269,7 @@ def GetListviews(request, **kwargs):
         visible_columns.append('object_id')
 
     # Separate computed fields (formula/rollup) from physical fields
-    schema = kwargs.get('schema', 'public')
+    schema = (get_validated_schema(kwargs) or 'public')
     physical_columns, computed_fields, extra_deps = process_computed_fields_for_report(visible_columns, another_object, schema)
     for dep in extra_deps:
         if dep not in physical_columns:
@@ -297,7 +298,7 @@ def GetListviews(request, **kwargs):
         data_list = enrich_task_with_related_to(request, result.get('data', []), **kwargs)
     if another_object == "target_item":
         data_list = enrich_target_item_with_assigned_to(request, data_list, **kwargs)
-    data_list = resolve_user_ids_in_data(data_list, visible_columns, kwargs.get('schema'))
+    data_list = resolve_user_ids_in_data(data_list, visible_columns, get_validated_schema(kwargs))
     # ✅ Calculate actual total count matching filters
     total_records_result = get_permissions(request, 
                                 tableName=another_object,
@@ -372,7 +373,7 @@ def get_listview_for_object(listview_name=None, **kwargs):
       2) If miss -> query DB, set in cache, return
     """
     object_name = kwargs.get('object_name')
-    schema = kwargs.get('schema')
+    schema = get_validated_schema(kwargs)
     table = "listviews"
 
     # Sanity: make sure we have schema
@@ -492,7 +493,7 @@ def get_dynamic_listview(listview_name, **kwargs):
     visible_columns = normalize_visible_columns(
         visible_columns,
         object_name,
-        kwargs.get("schema"),
+        get_validated_schema(kwargs),
     )
 
     return {
@@ -506,7 +507,7 @@ def get_dynamic_listview(listview_name, **kwargs):
 
 
 def is_recently_viewed_column_exist(**kwargs):
-    schema_name = kwargs.get('schema')
+    schema_name = get_validated_schema(kwargs)
     object_name = kwargs.get('object_name')
     if not schema_name or not object_name:
         raise ValueError("schema and object_name are required")

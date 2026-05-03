@@ -41,6 +41,7 @@ from .gmail_auth import get_user_gmail_credentials
 OUTLOOK_TOKEN_PATH = "api/emailsend/outlook_token.json"
 from urllib.parse import urlencode
 import time
+from api.security.schema_authority import get_validated_schema
  
 
 CLIENT_ID = os.getenv("OUTLOOK_CLIENT_ID")
@@ -153,11 +154,11 @@ def create_outlook_message(to_email, subject, body, cc: Optional[str] = None):
 
 def send_email_using_outlook_api(to_email, subject, body, user_id, cc: Optional[str] = None, **kwargs):
     try:
-        schema = kwargs.get("schema","public")
+        schema = (get_validated_schema(kwargs) or 'public')
         credentials,_ = get_user_gmail_credentials(user_id=user_id,provider="outlook",schema=schema)
         if not credentials:
             jwthandler = JWTHandler()
-            data = {"user_id": user_id,"provider": "gmail","schema": kwargs.get("schema","public"), "exp": now().timestamp() + 300}
+            data = {"user_id": user_id,"provider": "gmail","schema": (get_validated_schema(kwargs) or 'public'), "exp": now().timestamp() + 300}
             token = jwthandler.encrypt(data,expires_in_hours=0.0833)
             authurl = get_outlook_auth_url(token)
             return {"authurl" : authurl,"verify":True}

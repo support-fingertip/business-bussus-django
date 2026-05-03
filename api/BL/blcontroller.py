@@ -244,7 +244,7 @@ class BusinessLogicHandler:
 
 
             # Separate computed fields (formula/rollup) from physical fields
-            schema = kwargs.get('schema', 'public')
+            schema = (get_validated_schema(kwargs) or 'public')
             details_fields_raw = get_details_fields(fields)
             physical_details, computed_fields_details, extra_deps_details = process_computed_fields_for_report(details_fields_raw, table_name, schema)
 
@@ -1079,7 +1079,7 @@ class BusinessLogicHandler:
             total_count = None
             if not skip_count:
                 total_count = direct_report_count(
-                    table_name, filters, kwargs.get('schema')
+                    table_name, filters, get_validated_schema(kwargs)
                 )
                 if total_count is None:
                     try:
@@ -1134,7 +1134,7 @@ class BusinessLogicHandler:
                             gc_field = parent_key_gc
                         try:
                             group_count = direct_group_count(
-                                table_name, filters, gc_field, kwargs.get('schema')
+                                table_name, filters, gc_field, get_validated_schema(kwargs)
                             )
                         except Exception as gc_exc:
                             print(f"[report] group_count SQL failed: {gc_exc!r}")
@@ -1208,7 +1208,7 @@ class BusinessLogicHandler:
             owner_id_filter = self.request.GET.get('owner_id')  # Filter records by owner
             exclude_current = self.request.GET.get('exclude_current') == 'true'  # Exclude current user
             filters = []  # Start with an empty Q object
-            is_deleted = is_deleted_field_exist(another_object, kwargs.get('schema'))
+            is_deleted = is_deleted_field_exist(another_object, get_validated_schema(kwargs))
             if search_term:
                 filters = [{'field': "name", 'value': f"%{search_term}%", 'operator': 'ilike'}]
             if is_deleted:
@@ -1348,7 +1348,7 @@ class BusinessLogicHandler:
                     # For events, also check users_id (assigned user)
                     event_assigned = record_data[0].get('users_id') if record_data and object_name in ('event', 'events') else None
                     if record_owner != user_id and assigned_to != user_id and event_assigned != user_id:
-                        shared_recs = fetch_shared_records(user_id, object_name, kwargs.get('schema'), type='read/write')
+                        shared_recs = fetch_shared_records(user_id, object_name, get_validated_schema(kwargs), type='read/write')
                         shared_ids = {str(rec.get('record_id')) for rec in shared_recs}
                         if str(record_id) not in shared_ids:
                             raise Exception("Record not found.")
@@ -1494,7 +1494,7 @@ class BusinessLogicHandler:
                     # which joins public.users for human-readable name/email.
                     if related_model_name == "field_history_log":
                         history_rows = get_field_history(
-                            object_name, record_id, schema=kwargs.get('schema', 'public')
+                            object_name, record_id, schema=(get_validated_schema(kwargs) or 'public')
                         )
                         history_records = [
                             {
@@ -1524,7 +1524,7 @@ class BusinessLogicHandler:
                     fields = [field.get('name') for field in related_fields if field.get('visible')]
 
                     # Separate computed fields for the related object
-                    related_schema = kwargs.get('schema', 'public')
+                    related_schema = (get_validated_schema(kwargs) or 'public')
                     physical_related, computed_related, extra_deps_related = process_computed_fields_for_report(
                         fields, related_model_name, related_schema
                     )
@@ -1587,8 +1587,8 @@ class BusinessLogicHandler:
             try:
                 user_id = kwargs.get('user_', {}).get('id')
                 if record_id and user_id:
-                    all_shared = fetch_shared_records(user_id, object_name, kwargs.get('schema'), type='read/write')
-                    write_shared = fetch_shared_records(user_id, object_name, kwargs.get('schema'), type='write')
+                    all_shared = fetch_shared_records(user_id, object_name, get_validated_schema(kwargs), type='read/write')
+                    write_shared = fetch_shared_records(user_id, object_name, get_validated_schema(kwargs), type='write')
                     all_shared_ids = {str(r.get('record_id')) for r in all_shared}
                     write_ids = {str(r.get('record_id')) for r in write_shared}
                     if str(record_id) in all_shared_ids:
@@ -1711,7 +1711,7 @@ class BusinessLogicHandler:
 
             try:
                 # --- Fetch field history ---
-                field_history_rows = get_field_history(object_name, record_id, schema=kwargs.get('schema', 'public'))
+                field_history_rows = get_field_history(object_name, record_id, schema=(get_validated_schema(kwargs) or 'public'))
                 history_data = [
                     {
                         "field_name": row[0],
@@ -1736,7 +1736,7 @@ class BusinessLogicHandler:
                         record_id=record_id,
                         record_data=record_data,
                         parent_object=object_name,
-                        schema=kwargs.get('schema', 'public'),
+                        schema=(get_validated_schema(kwargs) or 'public'),
                     )
                 except Exception as e:
                     print(f"[DEBUG] Rollup fields processing error: {e}")
@@ -1869,7 +1869,7 @@ class BusinessLogicHandler:
             if another_object == "tabs":
                 app_ = self.request.GET.get('app', 'sales')
                 cache = CacheService()
-                result = cache.get(app_, "tabs", kwargs.get('schema'))
+                result = cache.get(app_, "tabs", get_validated_schema(kwargs))
                 if result:
                     return result
                 try:
@@ -1918,7 +1918,7 @@ class BusinessLogicHandler:
                         combined.append(page_lookup[name])
                     elif tab.get('type') == 'custom_tab':
                         combined.append(tab)
-                cache.set(app_, combined, "tabs", kwargs.get('schema'))    
+                cache.set(app_, combined, "tabs", get_validated_schema(kwargs))    
                 return combined
         elif self.object_name == 'field_mapping':            
             return get_field_mapping(self.request, id, **kwargs)
@@ -2175,7 +2175,7 @@ class BusinessLogicHandler:
                     return users
                 result = get_permissions(self.request, tableName='profile', id=id, **kwargs) 
                 try:
-                    schema = kwargs.get('schema', 'public')
+                    schema = (get_validated_schema(kwargs) or 'public')
                     for record in result.get('data', []):
                         with connection.cursor() as cursor:
                             cursor.execute("SET search_path TO %s", [schema])
@@ -2964,7 +2964,7 @@ class BusinessLogicHandler:
                             module_name=object_name,
                             field_name='formula_field',
                             formula=formula_expression,
-                            schema=kwargs.get('schema', 'public')
+                            schema=(get_validated_schema(kwargs) or 'public')
                         )
                         return {"success": True, "message": "Formula expression is valid."}
                     if param3 == 'fields':
@@ -3462,7 +3462,7 @@ class BusinessLogicHandler:
                         filtered_fields = filter_summary_fields(fields, group_by) if group_by_fields else get_details_fields(fields)
 
                         # Separate computed fields (formula/rollup) from physical fields
-                        schema = kwargs.get('schema', 'public')
+                        schema = (get_validated_schema(kwargs) or 'public')
                         details_fields = get_details_fields(fields)
                         physical_details, computed_fields_details, extra_deps_details = process_computed_fields_for_report(details_fields, table_name, schema)
 
@@ -4126,7 +4126,7 @@ class BusinessLogicHandler:
                         )
                         if not skip_count_preview:
                             total_count = direct_report_count(
-                                table_name, filters, kwargs.get('schema')
+                                table_name, filters, get_validated_schema(kwargs)
                             )
                             if total_count is None:
                                 try:
@@ -4187,7 +4187,7 @@ class BusinessLogicHandler:
                                     gc_field = parent_key_gc
                                 try:
                                     group_count = direct_group_count(
-                                        table_name, filters, gc_field, kwargs.get('schema')
+                                        table_name, filters, gc_field, get_validated_schema(kwargs)
                                     )
                                 except Exception as gc_exc:
                                     print(f"[report-preview] group_count SQL failed: {gc_exc!r}")
@@ -4310,11 +4310,11 @@ class BusinessLogicHandler:
                                 CALLER_ID = "914847172533"
                                 TELEPHONYID=object_details.get("id")
                                 objid = object_details.get("target_object")
-                                org = kwargs.get('schema')
+                                org = get_validated_schema(kwargs)
                                 DESTINATIONNUMBER = "91"+target
                                 # encrypted = encrypt_dict()
                                 query = """INSERT INTO {}.call_logs (call_type, landing_number, customer_number, object_id, agent_id, associated_department, start_time, call_status)
-                                VALUES('Outbound', %s, %s, %s, %s, %s, %s,'Connecting') RETURNING id""".format(kwargs.get("schema"))
+                                VALUES('Outbound', %s, %s, %s, %s, %s, %s,'Connecting') RETURNING id""".format(get_validated_schema(kwargs))
                                 values = run_query(query,[CALLER_ID,target,objid,user_id,kwargs.get("profile_id"),datetime.now()])[0]
                                 logID = values.get("id","")
                                 try:
@@ -4367,7 +4367,7 @@ class BusinessLogicHandler:
                     obj_id = existing[0].get('object_id')
                     existing_record_id = existing[0].get('id')
                     with connection.cursor() as cursor:
-                        cursor.execute("SET search_path TO %s", [kwargs.get('schema')])
+                        cursor.execute("SET search_path TO %s", [get_validated_schema(kwargs)])
                         cursor.execute(
                             "UPDATE listviews SET is_pinned = FALSE WHERE object_id = %s AND owner_id = %s",
                             [obj_id, user_id]
@@ -4396,7 +4396,7 @@ class BusinessLogicHandler:
                         }
                         # We need to unpin others first
                         with connection.cursor() as cursor:
-                            cursor.execute("SET search_path TO %s", [kwargs.get('schema')])
+                            cursor.execute("SET search_path TO %s", [get_validated_schema(kwargs)])
                             cursor.execute(
                                 "UPDATE listviews SET is_pinned = FALSE WHERE object_id = %s AND owner_id = %s",
                                 [obj_id, user_id]
@@ -4417,7 +4417,7 @@ class BusinessLogicHandler:
                 if object_id:
                     # Unpin all other listviews for this object and user
                     with connection.cursor() as cursor:
-                        cursor.execute("SET search_path TO %s", [kwargs.get('schema')])
+                        cursor.execute("SET search_path TO %s", [get_validated_schema(kwargs)])
                         cursor.execute(
                             "UPDATE listviews SET is_pinned = FALSE WHERE object_id = %s AND owner_id = %s",
                             [object_id, user_id]
@@ -4546,7 +4546,7 @@ class BusinessLogicHandler:
                 return userService.update_user_by_admin(update_data_) 
             elif another_object == 'fields':
                 print("Updating field with data", update_data_)
-                update_field_in_table(schema=kwargs.get('schema'), data=update_data_)  # Update the field in the actual table
+                update_field_in_table(schema=get_validated_schema(kwargs), data=update_data_)  # Update the field in the actual table
                 # update_data_.pop("name", None)  # Remove if exists
                 update_data_.pop("datatype", None)
                 update_data_.pop("object_name", None)
@@ -4568,7 +4568,7 @@ class BusinessLogicHandler:
                         })                    
                     result = patch_permission(self.request, 'tab_permissions', update_data=new_tabs, **kwargs)
                 print("Updating datas",update_data_)
-                CacheService().invalidate_all_by_table('tabs', schema=kwargs.get('schema'))
+                CacheService().invalidate_all_by_table('tabs', schema=get_validated_schema(kwargs))
                 return patch_permission(self.request, 'object', update_data=update_data_, **kwargs)                 
             
             elif another_object == 'workflow':
@@ -4663,7 +4663,7 @@ class BusinessLogicHandler:
                     app_data = update_app_data                                     
                 profiles = update_data_.get('profiles')    
                 cache = CacheService()
-                cache.invalidate_all_by_table('tabs', schema=kwargs.get('schema'))            
+                cache.invalidate_all_by_table('tabs', schema=get_validated_schema(kwargs))            
                 patch_permission(self.request, 'app_permissions', update_data=profiles, **kwargs) 
                 data = get_permissions(self.request, tableName='app', where=[{'field': 'is_deleted', 'operator': '=', 'value': False}],**kwargs).get('data', [])
                 excluded_ids = [app for app in data if app_data['id'] != app['id']]
@@ -4844,7 +4844,7 @@ class BusinessLogicHandler:
                 if param3 == 'fields':
                     return delete_field(data, user=self.request.user, section=f"Deleted field - {self.object_name}",**kwargs) 
                 result = delete_customobject(data.get("name"),**kwargs)
-                CacheService().invalidate_all_by_table('tabs', schema=kwargs.get('schema'))   
+                CacheService().invalidate_all_by_table('tabs', schema=get_validated_schema(kwargs))   
                 return result
             elif another_object == 'users':
                 if not ids:
@@ -4939,7 +4939,7 @@ def run_query(query, params=None, fetch_one=False, commit=False, **kwargs):
     from django.db import connection
 
     with connection.cursor() as cursor:
-        cursor.execute("SET search_path TO %s, public", [kwargs.get('schema')])
+        cursor.execute("SET search_path TO %s, public", [get_validated_schema(kwargs)])
         cursor.execute(query, params or [])
         if commit:
             return {"status": "success"}
@@ -4970,6 +4970,7 @@ def remove_aggregate_from_fields(fields):
 
 
 from api.BL.computed_fields import process_computed_fields_for_report, apply_computed_fields_to_records, separate_computed_filters, apply_computed_filters, direct_report_count, direct_group_count
+from api.security.schema_authority import get_validated_schema
 
 
 def get_details_fields(fields):

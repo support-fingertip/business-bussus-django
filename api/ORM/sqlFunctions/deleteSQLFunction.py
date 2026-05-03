@@ -2,12 +2,13 @@ from datetime import datetime
 from psycopg2 import sql
 from django.db import connection, transaction
 from api.ORM.sqlFunctions.utils.helpers import validate_identifier
+from api.security.schema_authority import get_validated_schema
 from django.utils import timezone
 
 
 def delete_data_sql(object_name, id_list, section=None, permanent=False, **kwargs):
     user = kwargs.get('user_')
-    schema = kwargs.get('schema')
+    schema = get_validated_schema(kwargs)
     if not schema:
         raise ValueError("Invalid user request: 'schema' is required in kwargs")
     

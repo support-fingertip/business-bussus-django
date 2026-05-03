@@ -4,12 +4,13 @@ from psycopg2 import sql
 
 from api.ORM.AuditLogs.audit_trail_logs import log_audit
 from api.ORM.sqlFunctions.utils.helpers import validate_identifier
+from api.security.schema_authority import get_validated_schema
 
 def delete_field(data, user=None, section=None ,**kwargs):
     """
     Deletes a field from an object using raw SQL and updates related layouts, list views, and permissions atomically.
     """
-    schema = kwargs.get('schema', 'public')
+    schema = (get_validated_schema(kwargs) or 'public')
     object_name = data.get('object')
     field_name = data.get('field_name')
     try:
