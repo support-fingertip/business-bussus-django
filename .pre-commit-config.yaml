@@ -1,0 +1,9 @@
+repos:
+  - repo: local
+    hooks:
+      - id: no-fstring-sql
+        name: Reject f-string/.format()/concat SQL in cursor.execute / run_query
+        entry: python scripts/check_no_fstring_sql.py
+        language: system
+        types: [python]
+        pass_filenames: true
