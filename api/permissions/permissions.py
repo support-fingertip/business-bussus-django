@@ -407,6 +407,7 @@ from api.ORM.setup.create_app import create_app
 from api.ORM.setup.newprofile import new_profile
 from api.permissions.FetchUsers.fetch_all_subordinates import get_all_subordinate_ids
 from api.permissions.FetchUsers.fetch_shared_records import fetch_shared_records
+from api.permissions._orm_dispatch import dispatch as _dispatch_path
 from api.workflows.workflow_executor import execute_workflows
 from api.ORM.sqlFunctions.getQueryBuilder import build_query
 from utils.access_level_filter import add_private_owner_filter
@@ -414,6 +415,23 @@ import logging
 from psycopg2 import sql
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Phase 2.B note — ORM cutover
+# ---------------------------------------------------------------------------
+# Each public function below that previously did `cursor.execute(...)`
+# against a tenant table now has two implementations: a `_<name>_raw()`
+# byte-identical to the pre-cutover code and a `_<name>_orm()` against
+# the Phase 2 Wave 2 models (api/tenant_models/). Dispatch is gated by
+# the env var ``USE_ORM_FOR_PERMISSIONS`` (default: 0 = raw SQL).
+#
+# The ORM path requires that the connection's search_path is pinned to
+# the tenant's schema. Phase 2 Wave 2's TenantSchemaMiddleware does
+# that for HTTP requests; this module also re-issues a SET search_path
+# defensively so callers from non-HTTP entry points (Celery, mgmt
+# commands) get correct tenant scoping when they've also gone through
+# `with_tenant_schema`.
 
 
 # ---------------------------------------------------------------------------
@@ -473,6 +491,45 @@ def _perm_cache(request):
     return cache
 
 
+def _get_object_details_raw(table_name, schema, include_setup):
+    """Legacy path — direct cursor.execute against the object table."""
+    cursor = connection.cursor()
+    cursor.execute("SET search_path TO %s", [schema])
+    if include_setup:
+        cursor.execute(
+            "SELECT id, label, setup FROM object WHERE name = %s",
+            [table_name],
+        )
+    else:
+        cursor.execute(
+            "SELECT id, label FROM object WHERE name = %s AND setup = FALSE",
+            [table_name],
+        )
+    return cursor.fetchone()
+
+
+def _get_object_details_orm(table_name, schema, include_setup):
+    """ORM path — same return shape as the raw path (tuple or None).
+
+    Caller-cache compatibility: returns ``(id, label)`` for the
+    setup=False filter, or ``(id, label, setup)`` when ``include_setup``
+    is true. None when not found.
+    """
+    from api.tenant_models import PlatformObject
+
+    # Defensive search_path pin in case a non-HTTP caller didn't go
+    # through TenantSchemaMiddleware.
+    with connection.cursor() as cur:
+        cur.execute("SET search_path TO %s", [schema])
+
+    qs = PlatformObject.objects.filter(name=table_name)
+    if include_setup:
+        row = qs.values_list("id", "label", "setup").first()
+    else:
+        row = qs.filter(setup=False).values_list("id", "label").first()
+    return row
+
+
 def get_object_details(table_name, **kwargs):
     schema = kwargs.get('schema')
     include_setup = kwargs.get('include_setup', False)
@@ -481,18 +538,34 @@ def get_object_details(table_name, **kwargs):
     cache_key = ("object_details", schema, table_name, bool(include_setup))
     if cache is not None and cache_key in cache:
         return cache[cache_key]
-    cursor = connection.cursor()
-    cursor.execute("SET search_path TO %s", [schema])  # Ensure the search path is set to public schema
-    if include_setup:
-        # Include all objects (setup=TRUE and setup=FALSE) — used by data export
-        cursor.execute("SELECT id, label, setup FROM object WHERE name = %s", [table_name])
-    else:
-        # Original behaviour: exclude setup objects
-        cursor.execute("SELECT id, label FROM object WHERE name = %s AND setup = FALSE", [table_name])
-    result = cursor.fetchone()
+    result = _dispatch_path(
+        "get_object_details",
+        raw_impl=lambda: _get_object_details_raw(table_name, schema, include_setup),
+        orm_impl=lambda: _get_object_details_orm(table_name, schema, include_setup),
+    )
     if cache is not None:
         cache[cache_key] = result
     return result
+
+
+def _profile_has_admin_access_raw(profile_id, schema):
+    cursor = connection.cursor()
+    cursor.execute("SET search_path TO %s", [schema])
+    cursor.execute(
+        "SELECT 1 FROM profile WHERE id = %s AND profile_type = ANY(%s) LIMIT 1",
+        [profile_id, list(ADMIN_ROLES)],
+    )
+    return cursor.fetchone() is not None
+
+
+def _profile_has_admin_access_orm(profile_id, schema):
+    from api.tenant_models import Profile
+    with connection.cursor() as cur:
+        cur.execute("SET search_path TO %s", [schema])
+    return Profile.objects.filter(
+        id=profile_id, profile_type__in=ADMIN_ROLES
+    ).exists()
+
 
 def profile_has_admin_access(profile_id, schema):
     """Return True iff ``profile_id`` is one of the privileged roles.
@@ -501,17 +574,11 @@ def profile_has_admin_access(profile_id, schema):
     the single source of truth. Adding a new admin tier should require
     editing exactly one place.
     """
-    cursor = connection.cursor()
-    cursor.execute("SET search_path TO %s", [schema])
-    # Bind the role list as a parameter (psycopg2 expects a tuple for IN).
-    # The previous version inlined the literal list into the SQL string,
-    # which meant role names were hard-coded in two places (the SQL and
-    # the docstring) and 'superadmin' was duplicated by accident.
-    cursor.execute(
-        "SELECT 1 FROM profile WHERE id = %s AND profile_type = ANY(%s) LIMIT 1",
-        [profile_id, list(ADMIN_ROLES)],
+    return _dispatch_path(
+        "profile_has_admin_access",
+        raw_impl=lambda: _profile_has_admin_access_raw(profile_id, schema),
+        orm_impl=lambda: _profile_has_admin_access_orm(profile_id, schema),
     )
-    return cursor.fetchone() is not None
 
 def get_all_fields_for_table(table_name, **kwargs):
     cursor = connection.cursor() # Ensure the search path is set to public schema
@@ -524,6 +591,70 @@ def get_all_fields_for_table(table_name, **kwargs):
     columns = cursor.fetchall()
     return [col[0] for col in columns]
 
+def _get_object_access_level_raw(object_id, schema):
+    cursor = connection.cursor()
+    cursor.execute("SET search_path TO %s", [schema])
+    cursor.execute(
+        "SELECT access_level FROM sharing_records WHERE object_id = %s",
+        [object_id],
+    )
+    row = cursor.fetchone()
+    return row[0] if row else None
+
+
+def _get_object_access_level_orm(object_id, schema):
+    from api.tenant_models import SharingRecord
+    with connection.cursor() as cur:
+        cur.execute("SET search_path TO %s", [schema])
+    return (
+        SharingRecord.objects.filter(object_id=object_id)
+        .values_list("access_level", flat=True)
+        .first()
+    )
+
+
+def get_object_access_level(object_id, schema):
+    """Return the sharing_records.access_level for an object, or None.
+
+    Phase 2.B helper that replaces the three identical raw-SQL blocks
+    that used to live inline in get_permissions / patch_permission /
+    delete_permission. Callers apply the default-deny fallback
+    (``DEFAULT_OBJECT_ACCESS_LEVEL``) themselves so the legacy code
+    paths' explicit checks against ``'Private'`` / ``'Public Read Only'``
+    keep working byte-for-byte.
+    """
+    return _dispatch_path(
+        "get_object_access_level",
+        raw_impl=lambda: _get_object_access_level_raw(object_id, schema),
+        orm_impl=lambda: _get_object_access_level_orm(object_id, schema),
+    )
+
+
+def _check_permission_raw(object_id, permission_type, schema, profile_id):
+    cursor = connection.cursor()
+    cursor.execute("SET search_path TO %s", [schema])
+    query = sql.SQL("""
+        SELECT 1 FROM object_permissions
+        WHERE object_id = %s AND profile_id = %s AND {} = TRUE
+    """).format(sql.Identifier(permission_type))
+    cursor.execute(query, [object_id, profile_id])
+    return cursor.fetchone() is not None
+
+
+def _check_permission_orm(object_id, permission_type, schema, profile_id):
+    from api.tenant_models import ObjectPermission
+    with connection.cursor() as cur:
+        cur.execute("SET search_path TO %s", [schema])
+    # permission_type is already whitelisted (VALID_PERMISSION_TYPES) so
+    # the **{key: True} expansion is safe — only attribute names from
+    # the whitelist reach the model.
+    return ObjectPermission.objects.filter(
+        object_id=object_id,
+        profile_id=profile_id,
+        **{permission_type: True},
+    ).exists()
+
+
 def check_permission(object_id, permission_type, **kwargs):
     """Return True iff ``profile_id`` has ``permission_type`` on ``object_id``.
 
@@ -531,6 +662,7 @@ def check_permission(object_id, permission_type, **kwargs):
     before being used as a SQL identifier — this is defence-in-depth on
     top of ``sql.Identifier``: a typo or unexpected caller input fails
     with a clear ValueError instead of selecting an unrelated column.
+    The whitelist also protects the ORM path's ``**kwargs`` spread.
     """
     if permission_type not in VALID_PERMISSION_TYPES:
         raise ValueError(
@@ -544,17 +676,74 @@ def check_permission(object_id, permission_type, **kwargs):
     cache_key = ("check_permission", schema, object_id, profile_id, permission_type)
     if cache is not None and cache_key in cache:
         return cache[cache_key]
-    cursor = connection.cursor()
-    cursor.execute("SET search_path TO %s", [schema])
-    query = sql.SQL("""
-        SELECT 1 FROM object_permissions
-        WHERE object_id = %s AND profile_id = %s AND {} = TRUE
-    """).format(sql.Identifier(permission_type))
-    cursor.execute(query, [object_id, profile_id])
-    result = cursor.fetchone() is not None
+    result = _dispatch_path(
+        "check_permission",
+        raw_impl=lambda: _check_permission_raw(
+            object_id, permission_type, schema, profile_id
+        ),
+        orm_impl=lambda: _check_permission_orm(
+            object_id, permission_type, schema, profile_id
+        ),
+    )
     if cache is not None:
         cache[cache_key] = result
     return result
+
+# Field columns selected by both raw and ORM paths — kept identical so
+# the post-processing loop below can iterate either result set without
+# branching. Order MUST match the tuple unpacking on the next line of
+# get_field_metadata.
+_FIELD_METADATA_COLUMNS = (
+    "name", "label", "datatype", "required", "parent_object",
+    "pickup_values", "is_modifiable", "relationship_name",
+    "sort_alpha", "first_as_default", "limit_predefined_values",
+    "default_value_in_checkbox", "default_value",
+    "send_mail", "no_skip", "no_rollback", "number_length",
+    "formula_expression", "formula_return_type",
+    "summarized_object", "rollup_type", "field_to_aggregate",
+    "filter_criteria",
+)
+
+
+def _field_metadata_rows_raw(object_id, access_type, schema, profile_id):
+    cursor = connection.cursor()
+    cursor.execute("SET search_path TO %s", [schema])
+    access_col = sql.Identifier(f"{access_type}_access")
+    select_list = sql.SQL(", ").join(
+        sql.SQL("f.{}").format(sql.Identifier(c))
+        for c in _FIELD_METADATA_COLUMNS
+    )
+    query = sql.SQL(
+        "SELECT {} FROM field_permissions fp JOIN fields f "
+        "ON fp.fields_id = f.id "
+        "WHERE fp.object_id = %s AND fp.profile_id = %s AND fp.{} = TRUE"
+    ).format(select_list, access_col)
+    cursor.execute(query, [object_id, profile_id])
+    return cursor.fetchall()
+
+
+def _field_metadata_rows_orm(object_id, access_type, schema, profile_id):
+    """Same return shape as the raw path (list of tuples in the
+    canonical column order). Uses ``select_related('field')`` to avoid
+    N+1 queries."""
+    from api.tenant_models import FieldPermission
+    with connection.cursor() as cur:
+        cur.execute("SET search_path TO %s", [schema])
+    access_attr = f"{access_type}_access"
+    qs = (
+        FieldPermission.objects.filter(
+            object_id=object_id,
+            profile_id=profile_id,
+            **{access_attr: True},
+        )
+        .select_related("field")
+    )
+    rows = []
+    for fp in qs:
+        f = fp.field
+        rows.append(tuple(getattr(f, col) for col in _FIELD_METADATA_COLUMNS))
+    return rows
+
 
 def get_field_metadata(object_id, access_type, **kwargs):
     """Return permitted_fields + per-field metadata for the caller's profile.
@@ -562,7 +751,8 @@ def get_field_metadata(object_id, access_type, **kwargs):
     ``access_type`` is whitelisted against ``VALID_PERMISSION_TYPES`` so
     the column suffix interpolated into the SQL identifier
     (``<access_type>_access``) can never come from an attacker-controlled
-    string.
+    string. The whitelist also gates the ORM path's getattr against the
+    Field model so an attacker cannot read arbitrary attributes.
     """
     schema = kwargs.get('schema')
     profile_id = kwargs.get('profile_id')
@@ -577,35 +767,18 @@ def get_field_metadata(object_id, access_type, **kwargs):
             f"expected one of {sorted(VALID_PERMISSION_TYPES)}"
         )
     try:
-        cursor = connection.cursor()
-
-        cursor.execute("SET search_path TO %s", [schema])
-        access_col = sql.Identifier(f"{access_type}_access")
-        query = sql.SQL("""
-            SELECT f.name, f.label, f.datatype, f.required, f.parent_object,
-                    f.pickup_values, f.is_modifiable,
-                    f.relationship_name, f.sort_alpha,
-                    f.first_as_default, f.limit_predefined_values,
-                    f.default_value_in_checkbox,
-                    f.default_value,
-                    f.send_mail,
-                    f.no_skip,
-                    f.no_rollback,
-                    f.number_length,
-                    f.formula_expression,
-                    f.formula_return_type,
-                    f.summarized_object,
-                    f.rollup_type,
-                    f.field_to_aggregate,
-                    f.filter_criteria
-            FROM field_permissions fp
-            JOIN fields f ON fp.fields_id = f.id
-            WHERE fp.object_id = %s AND fp.profile_id = %s AND fp.{} = TRUE
-        """).format(access_col)
-        cursor.execute(query, [object_id, kwargs.get('profile_id')])
+        rows = _dispatch_path(
+            "get_field_metadata",
+            raw_impl=lambda: _field_metadata_rows_raw(
+                object_id, access_type, schema, profile_id
+            ),
+            orm_impl=lambda: _field_metadata_rows_orm(
+                object_id, access_type, schema, profile_id
+            ),
+        )
         permitted_fields = []
         fields_metadata = []
-        for row in cursor.fetchall():
+        for row in rows:
             name, label, datatype, required, parent_object, pickup_values, is_modifiable, relationship_name, sort_alpha, first_as_default, limit_predefined_values, default_value_in_checkbox, default_value, send_mail, no_skip, no_rollback, number_length, formula_expression, formula_return_type, summarized_object, rollup_type, field_to_aggregate, filter_criteria = row
             field_data = {"name": name, "label": label, "datatype": datatype, "required": required, "is_modifiable": is_modifiable, "relationship_name": relationship_name}
             if datatype == 'lookup_relationship' and parent_object:
@@ -781,7 +954,8 @@ def get_permissions(request, **kwargs):
         if not fields:
             fields = get_all_fields_for_table(table_name, **kwargs)
             kwargs['fields'] = fields
-        cursor = connection.cursor()
+        # Phase 2.B: removed inline cursor — sharing_records access-level
+        # fetch is now done via get_object_access_level() further down.
         object_row = get_object_details(table_name, **kwargs)
 
         if not object_row:
@@ -792,18 +966,13 @@ def get_permissions(request, **kwargs):
 
         has_object_permission = check_permission(object_id, "read", **kwargs)
 
-        # Step 2: Get access level from sharing_records
-        cursor.execute("SET search_path TO %s", [schema])
-        cursor.execute("""
-            SELECT access_level
-            FROM sharing_records
-            WHERE object_id = %s
-        """, [object_id])
-        access_row = cursor.fetchone()
-        # Default-deny: missing sharing_records row means PRIVATE, not Public RW.
-        # Phase 2 changes this from the previous default-allow drift; tenants
-        # that want world-readable objects must add an explicit row.
-        access_level = access_row[0] if access_row else DEFAULT_OBJECT_ACCESS_LEVEL
+        # Step 2: Get access level from sharing_records — single helper
+        # so the read/patch/delete paths all dispatch identically
+        # through the Phase 2.B feature flag.
+        access_level = (
+            get_object_access_level(object_id, schema)
+            or DEFAULT_OBJECT_ACCESS_LEVEL
+        )
 
         # Check if user has any shared records for this object
         shared_recs = fetch_shared_records(user_id, table_name, kwargs.get('schema'), type='read')
@@ -936,16 +1105,11 @@ def patch_permission(request, table_name, **kwargs):
     object_id, object_label = object_row
     has_object_permission = check_permission(object_id, "edit", **kwargs)
 
-    cursor.execute("SET search_path TO %s", [schema])
-    # Step 3: Get sharing access level
-    cursor.execute("""
-        SELECT access_level
-        FROM sharing_records
-        WHERE object_id = %s
-    """, [object_id])
-    access_row = cursor.fetchone()
-    # Default-deny: see DEFAULT_OBJECT_ACCESS_LEVEL.
-    access_level = access_row[0] if access_row else DEFAULT_OBJECT_ACCESS_LEVEL
+    # Step 3: Get sharing access level (Phase 2.B — single helper).
+    access_level = (
+        get_object_access_level(object_id, schema)
+        or DEFAULT_OBJECT_ACCESS_LEVEL
+    )
 
     shared_recs = fetch_shared_records(user_id, table_name, kwargs.get('schema'), type='write')
 
@@ -1111,16 +1275,11 @@ def delete_permission(request, table_name, **kwargs):
     object_id, object_label = object_row
     has_object_permission = check_permission(object_id, "delete", **kwargs)
 
-    cursor.execute("SET search_path TO %s", [kwargs.get('schema')])
-    # Step 1: Get access level from sharing_records
-    cursor.execute("""
-        SELECT access_level
-        FROM sharing_records
-        WHERE object_id = %s
-    """, [object_id])
-    access_row = cursor.fetchone()
-    # Default-deny: see DEFAULT_OBJECT_ACCESS_LEVEL.
-    access_level = access_row[0] if access_row else DEFAULT_OBJECT_ACCESS_LEVEL
+    # Step 1: Get access level from sharing_records (Phase 2.B — single helper).
+    access_level = (
+        get_object_access_level(object_id, kwargs.get('schema'))
+        or DEFAULT_OBJECT_ACCESS_LEVEL
+    )
 
     user_id = kwargs.get('user_', {}).get('id')
     shared_recs = fetch_shared_records(user_id, table_name, kwargs.get('schema'), type='delete')
