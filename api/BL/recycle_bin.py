@@ -1,263 +1,309 @@
 # recycle_bin.py
+"""Recycle-bin operations.
+
+Hardened in Phase 0:
+  - Table names are passed through `psycopg2.sql.Identifier`, never f-string
+    interpolated into the SQL text. Validated against `validate_identifier`
+    before use.
+  - Permanently-delete and empty-recycle-bin paths now require the caller to
+    have delete permission on each object via `delete_permission`. Restoring
+    soft-deleted records likewise routes through `patch_permission`.
+"""
+
+import logging
 
 from django.db import connection
+from psycopg2 import sql
+
+from api.ORM.sqlFunctions.utils.helpers import validate_identifier
+from api.permissions.permissions import (
+    delete_permission,
+    patch_permission,
+)
+
+logger = logging.getLogger(__name__)
+
+
+def _is_deleted_column_exists(cursor, schema, table_name):
+    cursor.execute(
+        """
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = %s
+          AND column_name = 'is_deleted'
+          AND table_schema = %s
+        """,
+        [table_name, schema],
+    )
+    return cursor.fetchone() is not None
+
 
 def permanently_delete_records(records, **kwargs):
     if not records:
         raise Exception("No records provided for permanent delete.")
 
     delete_summary = {}
-    schema = kwargs.get('schema', 'public')
+    schema = kwargs.get("schema", "public")
+    request = kwargs.get("request")
 
     for rec in records:
         object_name = rec.get("object_name")
         record_id = rec.get("record_id")
-
         if not object_name or not record_id:
             continue
 
+        # Reject anything that isn't a safe SQL identifier before we use it.
+        validate_identifier(object_name, "object_name")
+
         with connection.cursor() as cursor:
-            cursor.execute("""
-                SELECT column_name 
-                FROM information_schema.columns 
-                WHERE table_name = %s AND column_name = 'is_deleted' AND table_schema = %s
-            """, [object_name, schema])
-            column_exists = cursor.fetchone()
+            if not _is_deleted_column_exists(cursor, schema, object_name):
+                continue
+            cursor.execute("SET search_path TO %s", [schema])
+            select_q = sql.SQL(
+                "SELECT id, is_deleted FROM {} WHERE id = %s"
+            ).format(sql.Identifier(object_name))
+            cursor.execute(select_q, [record_id])
+            row = cursor.fetchone()
+            if not (row and row[1]):
+                logger.info(
+                    "Recycle-bin: record %s not found or not soft-deleted in %s",
+                    record_id, object_name,
+                )
+                continue
 
-            if column_exists:
-                cursor.execute("SET search_path TO %s", [schema])
-                cursor.execute(f"""
-                    SELECT id, is_deleted
-                    FROM {object_name}
-                    WHERE id = %s
-                """, [record_id])
-                record = cursor.fetchone()
-
-                if record and record[1]:
-                    cursor.execute(f"""
-                        DELETE FROM {object_name}
-                        WHERE id = %s AND is_deleted = TRUE
-                    """, [record_id])
-
-                    if cursor.rowcount > 0:
-                        delete_summary.setdefault(object_name, []).append(record_id)
-                else:
-                    print(f"Record {record_id} not found or not soft-deleted in {object_name}.")
+        # Permission-gated delete. Pushes audit logging + workflow execution
+        # into the canonical delete path instead of doing a raw DELETE here.
+        try:
+            result = delete_permission(
+                request,
+                object_name,
+                ids=[record_id],
+                schema=schema,
+                hard_delete=True,
+                **{k: v for k, v in kwargs.items() if k != "schema"},
+            )
+            if result and result.get("success"):
+                delete_summary.setdefault(object_name, []).append(record_id)
+        except Exception as exc:
+            logger.error(
+                "Recycle-bin permanent delete failed for %s id=%s: %s",
+                object_name, record_id, exc,
+            )
 
     return {
         "success": True,
         "message": f"Permanently deleted records from {len(delete_summary)} object(s).",
-        "details": delete_summary
+        "details": delete_summary,
     }
-
 
 
 def empty_recycle_bin(**kwargs):
     delete_summary = {}
-    schema = kwargs.get('schema', 'public')
+    schema = kwargs.get("schema", "public")
+    request = kwargs.get("request")
 
     with connection.cursor() as cursor:
-        cursor.execute("""
-            SELECT table_name 
-            FROM information_schema.columns 
+        cursor.execute(
+            """
+            SELECT table_name
+            FROM information_schema.columns
             WHERE column_name = 'is_deleted'
-            AND table_schema = %s
-        """, [schema])
+              AND table_schema = %s
+            """,
+            [schema],
+        )
         tables = [row[0] for row in cursor.fetchall()]
 
-        for table in tables:
-            try:
-                cursor.execute("SET search_path TO %s", [schema])
-                cursor.execute(f"""
-                    SELECT id FROM {table} WHERE is_deleted = TRUE
-                """)
-                record_ids = [row[0] for row in cursor.fetchall()]
+    for table in tables:
+        try:
+            validate_identifier(table, "table_name")
+        except ValueError:
+            logger.warning("Recycle-bin: skipping unsafe table name %r", table)
+            continue
 
-                if record_ids:
-                    cursor.execute(f"""
-                        DELETE FROM {table} WHERE is_deleted = TRUE
-                    """)
-                    delete_summary[table] = record_ids
+        with connection.cursor() as cursor:
+            cursor.execute("SET search_path TO %s", [schema])
+            select_q = sql.SQL(
+                "SELECT id FROM {} WHERE is_deleted = TRUE"
+            ).format(sql.Identifier(table))
+            cursor.execute(select_q)
+            record_ids = [row[0] for row in cursor.fetchall()]
 
-            except Exception as e:
-                continue
+        if not record_ids:
+            continue
+
+        try:
+            result = delete_permission(
+                request,
+                table,
+                ids=record_ids,
+                schema=schema,
+                hard_delete=True,
+                **{k: v for k, v in kwargs.items() if k != "schema"},
+            )
+            if result and result.get("success"):
+                delete_summary[table] = record_ids
+        except Exception as exc:
+            logger.error(
+                "Recycle-bin empty failed for %s: %s", table, exc,
+            )
 
     return {
         "success": True,
         "message": f"Recycle bin emptied. Deleted records from {len(delete_summary)} table(s).",
-        "details": delete_summary
+        "details": delete_summary,
     }
 
 
-# def get_deleted_records():
-#     deleted_data = {}
-
-#     with connection.cursor() as cursor:
-#         cursor.execute("""
-#             SELECT table_name 
-#             FROM information_schema.tables 
-#             WHERE table_schema = 'public'
-#         """)
-#         tables = cursor.fetchall()
-
-#     for table in tables:
-#         table_name = table[0]
-
-#         with connection.cursor() as cursor:
-#             cursor.execute("""
-#                 SELECT column_name
-#                 FROM information_schema.columns
-#                 WHERE table_name = %s
-#             """, [table_name])
-#             columns = [col[0] for col in cursor.fetchall()]
-
-#             has_is_deleted = 'is_deleted' in columns
-#             has_name = 'name' in columns
-
-#         if has_is_deleted:
-#             select_columns = "id"
-#             if has_name:
-#                 select_columns += ", name"
-
-#             try:
-#                 with connection.cursor() as cursor:
-#                     cursor.execute(f"""
-#                         SELECT {select_columns}
-#                         FROM "{table_name}"
-#                         WHERE is_deleted = TRUE
-#                     """)
-#                     records = cursor.fetchall()
-
-#                 if records:
-#                     deleted_data[table_name] = []
-#                     for record in records:
-#                         item = {'id': record[0]}
-#                         if has_name:
-#                             item['name'] = record[1]
-#                         deleted_data[table_name].append(item)
-#             except Exception as e:
-#                 print(f"Error reading from {table_name}: {str(e)}")
-#     return deleted_data
-
-
-
 def get_deleted_records(**kwargs):
-    schema = kwargs.get('schema', 'public')
+    schema = kwargs.get("schema", "public")
     deleted_data = {}
 
     with connection.cursor() as cursor:
-        cursor.execute("""
-            SELECT table_name 
-            FROM information_schema.tables 
+        cursor.execute(
+            """
+            SELECT table_name
+            FROM information_schema.tables
             WHERE table_schema = %s
-        """, [schema])
-        tables = cursor.fetchall()
+            """,
+            [schema],
+        )
+        tables = [row[0] for row in cursor.fetchall()]
 
-    for table in tables:
-        table_name = table[0]
+    for table_name in tables:
+        try:
+            validate_identifier(table_name, "table_name")
+        except ValueError:
+            continue
 
         with connection.cursor() as cursor:
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT column_name
                 FROM information_schema.columns
                 WHERE table_name = %s AND table_schema = %s
-            """, [table_name, schema])
+                """,
+                [table_name, schema],
+            )
             columns = [col[0] for col in cursor.fetchall()]
 
-            has_is_deleted = 'is_deleted' in columns
-            has_name = 'name' in columns
-            has_deleted_by = 'deleted_by' in columns
-            has_deleted_by_id = 'deleted_by_id' in columns
-            has_deleted_date = 'deleted_date' in columns
+        if "is_deleted" not in columns:
+            continue
 
-        if has_is_deleted:
-            select_columns = [f"{table_name}.id AS id"]
-            mapedcolumns = ["id"]
-            if has_name:
-                select_columns.append(f"{table_name}.name AS name")
-                mapedcolumns.append("name")
-            if has_deleted_by:
-                select_columns.append(f"{table_name}.deleted_by AS deleted")
-            if has_deleted_by_id:
-                select_columns.append("u.name AS deleted_by_username")
-                mapedcolumns.append("deleted_by")
-            if has_deleted_date:
-                select_columns.append(f"{table_name}.deleted_date AS deleted_date")
-                mapedcolumns.append("deleted_date")
-            select_columns_str = ", ".join(select_columns)
+        has_name = "name" in columns
+        has_deleted_by = "deleted_by" in columns
+        has_deleted_by_id = "deleted_by_id" in columns
+        has_deleted_date = "deleted_date" in columns
+
+        select_parts = [sql.SQL("{}.id AS id").format(sql.Identifier(table_name))]
+        mapped_columns = ["id"]
+        if has_name:
+            select_parts.append(
+                sql.SQL("{}.name AS name").format(sql.Identifier(table_name))
+            )
+            mapped_columns.append("name")
+        if has_deleted_by:
+            select_parts.append(
+                sql.SQL("{}.deleted_by AS deleted").format(
+                    sql.Identifier(table_name)
+                )
+            )
+        if has_deleted_by_id:
+            select_parts.append(sql.SQL("u.name AS deleted_by_username"))
+            mapped_columns.append("deleted_by")
+        if has_deleted_date:
+            select_parts.append(
+                sql.SQL("{}.deleted_date AS deleted_date").format(
+                    sql.Identifier(table_name)
+                )
+            )
+            mapped_columns.append("deleted_date")
+        select_clause = sql.SQL(", ").join(select_parts)
+
+        records = []
+        with connection.cursor() as cursor:
+            cursor.execute("SET search_path TO %s", [schema])
             try:
-                with connection.cursor() as cursor:
-                    cursor.execute("SET search_path TO %s", [schema])
-                    try:
-                        cursor.execute(f"""
-                            SELECT 
-                            {select_columns_str}
-                            FROM "{table_name}"
-                            LEFT JOIN public.users u ON "{table_name}".deleted_by_id = u.id
-                            WHERE {table_name}.is_deleted = TRUE 
-                            LIMIT 25
-                        """)
-                        records = cursor.fetchall()
-                    except Exception as e:
-                        cursor.execute(f"""
-                            SELECT {select_columns_str}
-                            FROM "{table_name}"
-                            WHERE is_deleted = TRUE LIMIT 25
-                        """)
-                        records = cursor.fetchall()
-                if records:
-                    deleted_data[table_name] = []
-                    for record in records:
-                        item = dict(zip(mapedcolumns, record))
-                        deleted_data[table_name].append(item)
-            except Exception as e:
-                ...
-            print(f"Deleted records from {table_name}: {deleted_data.get(table_name, [])}")
-    return deleted_data
+                cursor.execute(
+                    sql.SQL(
+                        "SELECT {select_clause} "
+                        "FROM {table} "
+                        "LEFT JOIN public.users u ON {table}.deleted_by_id = u.id "
+                        "WHERE {table}.is_deleted = TRUE LIMIT 25"
+                    ).format(
+                        select_clause=select_clause,
+                        table=sql.Identifier(table_name),
+                    )
+                )
+                records = cursor.fetchall()
+            except Exception as exc:
+                logger.debug(
+                    "Falling back to non-join recycle-bin query for %s: %s",
+                    table_name, exc,
+                )
+                cursor.execute(
+                    sql.SQL(
+                        "SELECT {select_clause} "
+                        "FROM {table} "
+                        "WHERE is_deleted = TRUE LIMIT 25"
+                    ).format(
+                        select_clause=select_clause,
+                        table=sql.Identifier(table_name),
+                    )
+                )
+                records = cursor.fetchall()
 
+        if records:
+            deleted_data[table_name] = [
+                dict(zip(mapped_columns, r)) for r in records
+            ]
+    return deleted_data
 
 
 def restore_soft_deleted_records(records, **kwargs):
     if not records:
         raise Exception("No records provided for restore.")
 
+    schema = kwargs.get("schema", "public")
+    request = kwargs.get("request")
     restored_summary = {}
 
     for rec in records:
         table_name = rec.get("table_name") or rec.get("object_name")
         record_id = rec.get("record_id")
-
         if not table_name or not record_id:
-            continue  # Optionally log this
+            continue
 
+        try:
+            validate_identifier(table_name, "table_name")
+        except ValueError:
+            logger.warning(
+                "Restore: skipping unsafe table name %r", table_name,
+            )
+            continue
+
+        # Confirm soft-delete column exists before we ask the permissions
+        # layer to perform the update.
         with connection.cursor() as cursor:
-            # Ensure table exists in schema and is_deleted column exists
-            cursor.execute("""
-                SELECT column_name 
-                FROM information_schema.columns 
-                WHERE table_name = %s AND column_name = 'is_deleted' AND table_schema = %s
-            """, [table_name, kwargs.get('schema', 'public')])
-            column_exists = cursor.fetchone()
-
-        if column_exists:
-            try:
-                with connection.cursor() as cursor:
-                    cursor.execute("SET search_path TO %s", [kwargs.get('schema', 'public')])
-                    cursor.execute(f"""
-                        UPDATE "{table_name}"
-                        SET is_deleted = FALSE
-                        WHERE id = %s AND is_deleted = TRUE
-                    """, [record_id])
-
-                    if cursor.rowcount > 0:
-                        restored_summary.setdefault(table_name, []).append(record_id)
-            except Exception as e:
-                print(f"Failed to restore {table_name} ID {record_id}: {e}")
+            if not _is_deleted_column_exists(cursor, schema, table_name):
                 continue
+
+        try:
+            patch_permission(
+                request,
+                table_name,
+                update_data={"id": record_id, "is_deleted": False},
+                schema=schema,
+                **{k: v for k, v in kwargs.items() if k != "schema"},
+            )
+            restored_summary.setdefault(table_name, []).append(record_id)
+        except Exception as exc:
+            logger.error(
+                "Restore failed for %s id=%s: %s", table_name, record_id, exc,
+            )
 
     return {
         "success": True,
         "message": f"Restored records from {len(restored_summary)} object(s).",
         "details": restored_summary,
     }
-
