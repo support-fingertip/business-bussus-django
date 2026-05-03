@@ -77,32 +77,42 @@ reused via a local variable):
 branches (no request, request without pin, kwarg matches, kwarg
 mismatches in enforce + soak modes).
 
-## Remaining sites (Phase 2.C wave 2)
+## Remaining sites (Phase 2.C wave 2) — ✅ COMPLETE
 
-**~103 sites across 32 files** still need migration:
+Wave 2 landed in commit `ece4ac5`. All 105 remaining sites across 32
+files are now migrated. **The repo has zero live
+`kwargs.get('schema')` references outside docstrings / comments / the
+helper module itself.**
+
+Volume by file:
 
 | File | Sites |
 |---|---|
 | `api/BL/blcontroller.py` | 28 |
 | `api/BL/Profiles/patch_profiles.py` | 13 |
-| `api/BL/Listviews/GetListview.py` | 10 |
+| `api/BL/Listviews/GetListview.py` | 8 |
 | `api/BL/recycle_bin.py` | 4 |
-| `api/BL/task.py` | 3 |
-| `api/ORM/sqlFunctions/updateSQLFunction.py` | 3 |
-| `api/ORM/sqlFunctions/relationships.py` | 3 |
 | `api/ORM/setup/ObjectManager/post_object.py` | 3 |
-| (… 24 more files with 1-2 sites each) | … |
+| `api/ORM/sqlFunctions/relationships.py` | 3 (default `''`) |
+| `api/ORM/sqlFunctions/updateSQLFunction.py` | 3 |
+| `api/BL/task.py` | 2 |
+| `api/BL/PageBuilder/get_pagebuilder.py` | 2 |
+| `api/BL/dashboards/dashboard.py` | 2 |
+| `api/BL/home/home.py` | 2 |
+| `api/ORM/setup/update_page_builder.py` | 2 |
+| `api/ORM/setup/workflows/create_workflow.py` | 2 |
+| `api/ORM/sqlFunctions/createSQLFunction.py` | 2 |
+| `api/ORM/sqlFunctions/information_schema.py` | 2 |
+| `api/emailsend/utils/gmail_auth.py` | 2 |
+| `api/emailsend/utils/outlook_service.py` | 2 |
+| `utils/field_tracking.py` | 2 |
+| `utils/usergroup_utils.py` | 2 |
+| 13 more files | 1 each |
 
-These are mechanical conversions following the same pattern. Each
-file should:
-1. Add `from api.security.schema_authority import get_validated_schema`
-2. Replace `schema = kwargs.get('schema')` with `schema = get_validated_schema(kwargs)`
-3. Replace inline `kwargs.get('schema')` reads with the local `schema`
-4. Run pytest
+Total: 105 live sites converted across 32 files.
 
-The `api/security/schema_authority.py` file itself has 7 references
-to `kwargs.get('schema')` — those are the helper's own internals and
-self-references in docstrings; they stay as-is.
+The `api/security/schema_authority.py` file itself has self-references
+in docstrings (the migration pattern is documented there). Those stay.
 
 ## Rollout plan
 
