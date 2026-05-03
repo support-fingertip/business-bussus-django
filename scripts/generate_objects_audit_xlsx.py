@@ -241,6 +241,119 @@ REGISTRY_GAPS = [
      "Facebook Lead Webhooks",
      "facebook/models.py (currently commented out)",
      "Add registry row OR delete the Django model — currently dead code"),
+
+    # ─────────────────────────────────────────────────────────────────
+    # The following entries were discovered during the
+    # tables.sql / default_tables.sql cross-check (Phase 2 ORM Wave 2).
+    # default_tables.sql is loaded by public/utils/organisation.py at
+    # tenant provisioning, so every CREATE TABLE in it produces a real
+    # per-tenant table — but several of them were never registered in
+    # the object table.
+    # ─────────────────────────────────────────────────────────────────
+
+    # Real per-tenant tables created by default_tables.sql but absent
+    # from the object registry.
+    ("Missing setup table", "callactivity", "Call Activity",
+     "default_tables.sql:933",
+     "Add registry row (setup=TRUE); telephony call-activity log"),
+    ("Missing setup table", "dashboard_assignment", "Dashboard Assignment",
+     "default_tables.sql (dashboard module)",
+     "Add registry row (setup=TRUE); dashboard share assignment"),
+    ("Missing setup table", "dashboard_folder_sharing",
+     "Dashboard Folder Sharing",
+     "default_tables.sql:739",
+     "Add registry row (setup=TRUE)"),
+    ("Missing setup table", "email_provider_setup",
+     "Email Provider Setup",
+     "default_tables.sql:785",
+     "Add registry row (setup=TRUE); OAuth-token storage (encrypted "
+     "since Phase 0.8)"),
+    ("Missing setup table", "field_mapping", "Field Mapping",
+     "default_tables.sql:146",
+     "Add registry row (setup=TRUE)"),
+    ("Missing setup table", "notifications", "Notifications",
+     "default_tables.sql:905",
+     "Add registry row (setup=TRUE); registry currently has BL route "
+     "name 'notification' but no entry for the actual table"),
+    ("Missing setup table", "org_company", "Organization Company",
+     "default_tables.sql (legacy column-mapping table)",
+     "Add registry row (setup=TRUE); investigate whether still used"),
+    ("Missing setup table", "report_folder_sharing",
+     "Report Folder Sharing",
+     "default_tables.sql:847",
+     "Add registry row (setup=TRUE)"),
+    ("Missing setup table", "shared_records",
+     "Shared Records (per-record sharing)",
+     "default_tables.sql:873",
+     "Add registry row (setup=TRUE); DISTINCT from 'sharing_records' "
+     "— sharing_records is per-object, shared_records is per-record"),
+    ("Missing setup table", "telephony_user", "Telephony User",
+     "default_tables.sql:923",
+     "Add registry row (setup=TRUE); referenced in api/telephony/views.py"),
+    ("Missing setup table", "user_gmail_tokens", "User Gmail Tokens",
+     "default_tables.sql:705",
+     "Add registry row (setup=TRUE); legacy — superseded by "
+     "email_provider_setup but still created"),
+    ("Missing setup table", "user_outlook_tokens", "User Outlook Tokens",
+     "default_tables.sql:720",
+     "Add registry row (setup=TRUE); legacy — superseded by "
+     "email_provider_setup but still created"),
+
+    # Naming clashes uncovered by the cross-check.
+    ("Naming inconsistency", "report (default_tables.sql) vs reports (registry)",
+     "Report",
+     "default_tables.sql:320 has `CREATE TABLE report`; registry has "
+     "'reports' as the setup name",
+     "Pick one: either rename DDL to reports or update the registry "
+     "to use 'report'"),
+    ("Naming inconsistency",
+     "shared_records vs sharing_records",
+     "Two genuinely different tables, names too similar",
+     "default_tables.sql defines BOTH; sharing_records is per-object, "
+     "shared_records is per-record",
+     "Rename one to disambiguate (suggest: per_record_shares) and "
+     "update all references"),
+
+    # Vestigial registry entries — registered but no DDL anywhere.
+    ("Vestigial registry entry", "roles",
+     "Aspirational Salesforce-style role hierarchy",
+     "Registered as setup=TRUE but no CREATE TABLE in tables.sql / "
+     "default_tables.sql / organisation.py / app models; no FROM roles "
+     "queries in the codebase",
+     "Either build out the role-hierarchy feature OR delete the "
+     "registry row + drop the Wave 2 Role model"),
+    ("Vestigial registry entry", "owd",
+     "Org-Wide Defaults table",
+     "Registered as setup=TRUE but no DDL anywhere; no FROM owd queries. "
+     "Phase 2 default-deny work uses sharing_records exclusively.",
+     "Either build out OR delete the registry row + drop the Wave 2 "
+     "OrganizationWideDefault model"),
+    ("Vestigial registry entry",
+     "apex_class, approval_processes, auth_group, columns_metadata, "
+     "component, connected_app, custom_metadata, custom_setting, "
+     "duplicate_rule, file, flows, group_assignment_tracker, "
+     "import_wizard, lead_capture, lightning_pages, matching_rule, "
+     "named_credential, node, package, permission_sets, "
+     "process_builders, regions, remote_site_setting, sales, setup, "
+     "sf_integration_lead, sharing_rules, tables_metadata, tabs, "
+     "theme, users_user_permissions, workflow_rules",
+     "Aspirational Salesforce-clone features",
+     "Registered as setup=TRUE but no DDL in default_tables.sql, "
+     "organisation.py, or app models; no SQL queries reference them",
+     "Bulk-investigate; delete vestigial rows after confirming none "
+     "are queried at runtime"),
+
+    # Tables.sql discoveries.
+    ("Missing business object", "activity",
+     "Activity",
+     "tables.sql defines `CREATE TABLE activity` but it's not in the "
+     "object registry as a business object",
+     "Register as business object (setup=FALSE)"),
+    ("Missing business object", "email",
+     "Email (record)",
+     "tables.sql defines `CREATE TABLE email` for sent-email logging; "
+     "not in the registry",
+     "Register as business object (setup=FALSE)"),
 ]
 
 
@@ -257,6 +370,52 @@ COL_ORDER = [
 ]
 
 VALUE_RE = re.compile(r"NULL|'(?:[^'\\]|\\.)*'", re.DOTALL)
+
+
+# ---------- DDL cross-check sources --------------------------------------- #
+TABLES_SQL = os.path.join(ROOT, "tables.sql")
+DEFAULT_TABLES_SQL = os.path.join(ROOT, "default_tables.sql")
+ORGANISATION_PY = os.path.join(ROOT, "public", "utils", "organisation.py")
+
+
+_CREATE_TABLE_RE = re.compile(
+    r"\bCREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?"
+    r'(?:[a-z_][a-z0-9_]*\.)?\"?([a-z_][a-z0-9_]*)\"?',
+    re.IGNORECASE,
+)
+
+
+def extract_create_tables(path: str) -> set[str]:
+    if not os.path.exists(path):
+        return set()
+    with open(path, "r", encoding="utf-8", errors="ignore") as f:
+        return {m.group(1).lower() for m in _CREATE_TABLE_RE.finditer(f.read())}
+
+
+# Tables that are managed by Django itself or sit in app-specific models.py.
+APP_MODELED_DB_TABLES: set[str] = {
+    # api/models.py
+    "organizations", "users", "session_log", "user_login_history",
+    # facebook/
+    "facebook_lead", "facebookleadwebhooks",
+    # whatsapp/
+    "message", "channel", "webhook",
+    # sf_integration/
+    "salesforce_metadata", "salesforce_settings", "salesforce_sync",
+}
+
+# Tables modeled in Phase 2 Wave 2 (api/tenant_models/).
+WAVE2_DB_TABLES: set[str] = {
+    "object", "fields", "profile", "roles",
+    "user_group", "user_group_users",
+    "object_permissions", "field_permissions",
+    "tab_permissions", "app_permissions",
+    "sharing_records", "owd",
+}
+
+# Tables created by Python f-string DDL inside organisation.py (the
+# tenant-provisioning bootstrap pair).
+ORG_PY_INLINE_DDL: set[str] = {"profile", "users"}
 
 
 def parse_objects_sql(path: str):
@@ -683,6 +842,160 @@ def update_summary_with_gaps(wb):
                "See Registry_Gaps sheet"))
 
 
+def add_ddl_cross_check(wb, parsed):
+    """Compare every distinct table name across all sources of truth.
+
+    Sources:
+      A. ``sqlfiles/objects.sql`` registry (parsed)
+      B. ``default_tables.sql`` (per-tenant setup-table DDL)
+      C. ``tables.sql`` (per-tenant business-object DDL)
+      D. ``public/utils/organisation.py`` (inline DDL — bootstrap tables)
+      E. App-modeled tables (Django models in app/models.py)
+      F. Phase 2 Wave 2 Django models
+
+    The sheet shows, for every distinct table name, whether each source
+    has it. Reviewers can scan for mismatches in seconds.
+    """
+    ws = wb.create_sheet("DDL_Cross_Check")
+
+    headers = [
+        "Table Name",
+        "In Registry",
+        "Registry Type",        # setup / standard / custom / -
+        "default_tables.sql",   # canonical per-tenant setup DDL
+        "tables.sql",           # canonical per-tenant business DDL
+        "Inline organisation.py",
+        "App models.py",
+        "Phase 2 Wave 2 model",
+        "Verdict",
+    ]
+    ws.append(headers)
+
+    default_set = extract_create_tables(DEFAULT_TABLES_SQL)
+    tables_set = extract_create_tables(TABLES_SQL)
+
+    registry_setup = {r["name"] for r in parsed if r.get("setup") == "True"}
+    registry_business_std = {r["name"] for r in parsed
+                             if r.get("setup") != "True"
+                             and (r.get("type") or "").lower() == "standard"}
+    registry_business_cust = {r["name"] for r in parsed
+                              if r.get("setup") != "True"
+                              and (r.get("type") or "").lower() == "custom"}
+
+    def _registry_type(name):
+        if name in registry_setup:
+            return "setup"
+        if name in registry_business_std:
+            return "standard"
+        if name in registry_business_cust:
+            return "custom"
+        return "-"
+
+    # Union of all table names from every source.
+    all_names = sorted(
+        default_set
+        | tables_set
+        | ORG_PY_INLINE_DDL
+        | APP_MODELED_DB_TABLES
+        | WAVE2_DB_TABLES
+        | registry_setup
+        | registry_business_std
+        | registry_business_cust
+    )
+
+    for name in all_names:
+        in_registry = name in (
+            registry_setup | registry_business_std | registry_business_cust
+        )
+        in_default = name in default_set
+        in_tables = name in tables_set
+        in_org_py = name in ORG_PY_INLINE_DDL
+        in_app_models = name in APP_MODELED_DB_TABLES
+        in_wave2 = name in WAVE2_DB_TABLES
+
+        ddl_sources = sum([in_default, in_tables, in_org_py, in_app_models])
+
+        # Compute verdict.
+        if name.startswith("django_"):
+            verdict = "OK — Django/Celery framework table"
+        elif in_registry and ddl_sources >= 1:
+            verdict = "OK"
+        elif in_registry and ddl_sources == 0:
+            verdict = "VESTIGIAL — registered but no DDL anywhere"
+        elif (not in_registry) and ddl_sources >= 1:
+            verdict = "GAP — DDL exists, registry row missing"
+        else:
+            verdict = "?"
+
+        ws.append([
+            name,
+            "Yes" if in_registry else "No",
+            _registry_type(name),
+            "Yes" if in_default else "",
+            "Yes" if in_tables else "",
+            "Yes" if in_org_py else "",
+            "Yes" if in_app_models else "",
+            "Yes" if in_wave2 else "",
+            verdict,
+        ])
+
+    style_header(ws, len(headers))
+
+    # Color-code rows by verdict.
+    verdict_fills = {
+        "OK": PatternFill("solid", fgColor="E2EFDA"),
+        "OK — Django/Celery framework table": PatternFill("solid", fgColor="EAEAEA"),
+        "GAP — DDL exists, registry row missing": PatternFill("solid", fgColor="FCE4D6"),
+        "VESTIGIAL — registered but no DDL anywhere": PatternFill("solid", fgColor="FFF2CC"),
+    }
+    for i, name in enumerate(all_names, start=2):
+        verdict = ws.cell(row=i, column=len(headers)).value
+        fill = verdict_fills.get(verdict)
+        if fill:
+            for c in range(1, len(headers) + 1):
+                ws.cell(row=i, column=c).fill = fill
+        for c in range(1, len(headers) + 1):
+            ws.cell(row=i, column=c).border = BORDER
+            ws.cell(row=i, column=c).alignment = Alignment(
+                vertical="top", wrap_text=True
+            )
+
+    autosize(ws, headers, max_w=60)
+
+    last_col = get_column_letter(len(headers))
+    table = Table(displayName="DDLCrossCheck",
+                  ref=f"A1:{last_col}{ws.max_row}")
+    table.tableStyleInfo = TableStyleInfo(
+        name="TableStyleLight2", showRowStripes=False, showColumnStripes=False
+    )
+    ws.add_table(table)
+
+    # Summary block at the bottom.
+    counts = {
+        "OK": 0,
+        "OK — Django/Celery framework table": 0,
+        "GAP — DDL exists, registry row missing": 0,
+        "VESTIGIAL — registered but no DDL anywhere": 0,
+    }
+    for name in all_names:
+        if name.startswith("django_"):
+            counts["OK — Django/Celery framework table"] += 1
+            continue
+        in_registry = name in (
+            registry_setup | registry_business_std | registry_business_cust
+        )
+        ddl_sources = sum([
+            name in default_set, name in tables_set,
+            name in ORG_PY_INLINE_DDL, name in APP_MODELED_DB_TABLES,
+        ])
+        if in_registry and ddl_sources >= 1:
+            counts["OK"] += 1
+        elif in_registry and ddl_sources == 0:
+            counts["VESTIGIAL — registered but no DDL anywhere"] += 1
+        elif not in_registry and ddl_sources >= 1:
+            counts["GAP — DDL exists, registry row missing"] += 1
+
+
 def main():
     parsed = parse_objects_sql(OBJECTS_SQL)
     print(f"Parsed {len(parsed)} object rows")
@@ -696,6 +1009,7 @@ def main():
     add_all_objects(wb, parsed)
     add_migration_plan(wb, parsed)
     add_registry_gaps(wb)
+    add_ddl_cross_check(wb, parsed)
     update_summary_with_gaps(wb)
 
     wb.save(OUT_XLSX)
