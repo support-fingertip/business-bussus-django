@@ -404,13 +404,25 @@ APP_MODELED_DB_TABLES: set[str] = {
     "salesforce_metadata", "salesforce_settings", "salesforce_sync",
 }
 
-# Tables modeled in Phase 2 Wave 2 (api/tenant_models/).
+# Tables modeled in Phase 2 Wave 2 (api/tenant_models/). Role and
+# OrganizationWideDefault were dropped in cleanup — they were
+# vestigial (no DDL, no runtime queries).
 WAVE2_DB_TABLES: set[str] = {
-    "object", "fields", "profile", "roles",
+    "object", "fields", "profile",
     "user_group", "user_group_users",
     "object_permissions", "field_permissions",
     "tab_permissions", "app_permissions",
-    "sharing_records", "owd",
+    "sharing_records",
+}
+
+# Custom-business-object names: their DDL is dynamic (created at
+# runtime when a user defines a custom object), so absence from
+# tables.sql / default_tables.sql is expected, not a vestigial-entry
+# signal. The verdict logic special-cases these.
+CUSTOM_BUSINESS_OBJECT_NAMES_SAMPLE: set[str] = {
+    "an_object_for_testing", "business", "call", "collection",
+    "customer", "issue", "leave", "location_track", "test", "ticket",
+    "visit",
 }
 
 # Tables created by Python f-string DDL inside organisation.py (the
@@ -916,14 +928,22 @@ def add_ddl_cross_check(wb, parsed):
         ddl_sources = sum([in_default, in_tables, in_org_py, in_app_models])
 
         # Compute verdict.
+        registry_type = _registry_type(name)
         if name.startswith("django_"):
             verdict = "OK — Django/Celery framework table"
         elif in_registry and ddl_sources >= 1:
             verdict = "OK"
+        elif registry_type == "custom" and ddl_sources == 0:
+            # Custom-business-object DDL is dynamic (created at runtime
+            # when the user adds the object); absence from static SQL
+            # files is expected, not vestigial.
+            verdict = "OK — custom (dynamic DDL)"
         elif in_registry and ddl_sources == 0:
             verdict = "VESTIGIAL — registered but no DDL anywhere"
         elif (not in_registry) and ddl_sources >= 1:
             verdict = "GAP — DDL exists, registry row missing"
+        elif (not in_registry) and in_wave2:
+            verdict = "ORPHANED MODEL — dropped from registry"
         else:
             verdict = "?"
 
