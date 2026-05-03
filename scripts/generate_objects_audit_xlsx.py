@@ -2,8 +2,8 @@
 Build an Excel audit workbook of every entry in the `object` registry.
 
 Reads the seed data in sqlfiles/objects.sql, cross-references the Django
-models actually defined in the codebase, and emits an .xlsx with three
-sheets: Summary, All_Objects, Migration_Plan.
+models actually defined in the codebase, and emits an .xlsx with four
+sheets: Summary, All_Objects, Migration_Plan, Registry_Gaps.
 """
 import os
 import re
@@ -145,6 +145,103 @@ SETUP_GROUPS = {
     "django_celery_beat_periodictasks":     "Django Framework (Celery Beat)",
     "django_celery_beat_solarschedule":     "Django Framework (Celery Beat)",
 }
+
+
+# Registry gaps discovered by AST-precise scan of cursor.execute() calls
+# and *.sql files. Each entry: (kind, table, label_guess, evidence, recommendation)
+REGISTRY_GAPS = [
+    # ── Real DB tables used in code that have NO row in the object registry ──
+    ("Missing setup table", "homepage_assignment", "Homepage Assignment",
+     "api/ORM/setup/newprofile.py:88,93",
+     "Add registry row (setup=TRUE); will be migrated to Django ORM"),
+    ("Missing setup table", "page_builder", "Page Builder",
+     "api/ORM/setup/update_page_builder.py:28",
+     "Add registry row (setup=TRUE); distinct from registered "
+     "'page_builder_assignment'"),
+    ("Missing setup table", "page_component", "Page Component",
+     "api/ORM/setup/update_page_builder.py:66,78",
+     "Add registry row (setup=TRUE); page-builder child table"),
+    ("Missing setup table", "whatsapp_message", "WhatsApp Message",
+     "api/BL/whatsapp/utils.py:18,67",
+     "Add registry row (setup=TRUE); chat-message store"),
+    ("Missing setup table", "user_group_profiles", "User Group Profiles",
+     "utils/usergroup_utils.py:305",
+     "Add registry row (setup=TRUE); junction table for "
+     "user_group <-> profile"),
+    ("Missing setup table", "user_group_public_groups",
+     "User Group Public Groups",
+     "utils/usergroup_utils.py:317; api/workflows/workflow_executor.py:552",
+     "Add registry row (setup=TRUE); junction for nested user groups"),
+    ("Missing setup table", "otp_verification_sessions",
+     "OTP Verification Sessions",
+     "public/auth/otp_verification.py:156,198",
+     "Add registry row (setup=TRUE); auth/OTP flow"),
+    ("Missing setup table", "tenant_provisioning_errors",
+     "Tenant Provisioning Errors",
+     "public/utils/error_log.py:20",
+     "Add registry row (setup=TRUE); tenant onboarding error log"),
+    ("Missing setup table", "organizations", "Organizations",
+     "adminuser/services/organizations.py:28,53; api/models.py:Organization",
+     "Add registry row (setup=TRUE); already has Django model"),
+
+    # ── Tables referenced in mockdata SQL but not registered ──
+    ("Missing business object", "report_folder", "Report Folder",
+     "sqlfiles/mockdata/reports.sql",
+     "Add registry row (setup=FALSE); related to 'reports' (already "
+     "registered)"),
+    ("Missing business object", "dashboard_component", "Dashboard Component",
+     "sqlfiles/mockdata/reports.sql",
+     "Add registry row; child of dashboard"),
+    ("Missing business object", "dashboard_folders", "Dashboard Folders",
+     "sqlfiles/mockdata/reports.sql",
+     "Plural form referenced; registry has 'dashboard_folder' singular - "
+     "pick one and reconcile"),
+
+    # ── Plural / singular naming inconsistencies ──
+    ("Naming inconsistency", "dashboard_folder vs dashboard_folders",
+     "Dashboard Folder",
+     "registry: dashboard_folder (singular); code: dashboard_folders (plural)",
+     "Standardize on one form across registry, code, and mockdata"),
+    ("Naming inconsistency", "reports vs report vs report_folder",
+     "Report",
+     "registry: 'reports'; code uses 'report' and 'report_folder' too",
+     "Standardize and register all related tables"),
+
+    # ── Likely typos / bugs ──
+    ("Bug — likely typo", "organization (singular)",
+     "Probably means 'organizations'",
+     "api/pdfgen/views.py:74",
+     "Fix the SQL string to use 'organizations'"),
+    ("Bug — likely typo", "hsitory",
+     "Probably means 'history'",
+     "registry row in objects.sql",
+     "Rename to 'history' before migration"),
+
+    # ── Legacy duplicates: setup-side vs business-side ──
+    ("Legacy duplicate", "customers (setup) vs customer (business)",
+     "Customer",
+     "objects.sql registers both",
+     "Investigate which is actually used; merge or delete the unused one"),
+    ("Legacy duplicate", "products (setup) vs product (business)",
+     "Product",
+     "objects.sql registers both",
+     "Investigate which is actually used; merge or delete the unused one"),
+    ("Legacy duplicate", "invoices (setup) vs invoice (business)",
+     "Invoice",
+     "objects.sql registers both",
+     "Investigate which is actually used; merge or delete the unused one"),
+    ("Legacy duplicate",
+     "invoice_items (setup) vs invoice_item (business)",
+     "Invoice Item",
+     "objects.sql registers both",
+     "Investigate which is actually used; merge or delete the unused one"),
+
+    # ── Modeled by Django but no registry entry ──
+    ("Django-modeled, not in registry", "facebookleadwebhooks",
+     "Facebook Lead Webhooks",
+     "facebook/models.py (currently commented out)",
+     "Add registry row OR delete the Django model — currently dead code"),
+]
 
 
 # ---------- parsing -------------------------------------------------------- #
@@ -521,6 +618,71 @@ def add_migration_plan(wb, parsed):
     ws.add_table(table)
 
 
+# Color fills per gap kind for the Registry_Gaps sheet
+GAP_FILLS = {
+    "Missing setup table":             PatternFill("solid", fgColor="F8CBAD"),
+    "Missing business object":         PatternFill("solid", fgColor="FCE4D6"),
+    "Naming inconsistency":            PatternFill("solid", fgColor="FFF2CC"),
+    "Bug — likely typo":               PatternFill("solid", fgColor="F4B084"),
+    "Legacy duplicate":                PatternFill("solid", fgColor="DDEBF7"),
+    "Django-modeled, not in registry": PatternFill("solid", fgColor="E2EFDA"),
+}
+
+
+def add_registry_gaps(wb):
+    ws = wb.create_sheet("Registry_Gaps")
+    headers = ["Kind", "Table / Item", "Label / Note",
+               "Evidence (file:line)", "Recommended Action"]
+    ws.append(headers)
+
+    # group by kind, preserve insertion order
+    order = ["Missing setup table", "Missing business object",
+             "Naming inconsistency", "Bug — likely typo",
+             "Legacy duplicate", "Django-modeled, not in registry"]
+    rows = sorted(REGISTRY_GAPS,
+                  key=lambda r: (order.index(r[0]) if r[0] in order else 99,
+                                 r[1]))
+    for r in rows:
+        ws.append(list(r))
+
+    style_header(ws, len(headers))
+    for i, r in enumerate(rows, start=2):
+        fill = GAP_FILLS.get(r[0])
+        for c in range(1, len(headers) + 1):
+            cell = ws.cell(row=i, column=c)
+            if fill is not None:
+                cell.fill = fill
+            cell.border = BORDER
+            cell.alignment = Alignment(vertical="top", wrap_text=True)
+
+    autosize(ws, headers, max_w=80)
+
+    last_col = get_column_letter(len(headers))
+    table = Table(displayName="RegistryGaps",
+                  ref=f"A1:{last_col}{ws.max_row}")
+    table.tableStyleInfo = TableStyleInfo(
+        name="TableStyleLight16", showRowStripes=False
+    )
+    ws.add_table(table)
+
+
+def update_summary_with_gaps(wb):
+    """Append registry-gap counts to the Summary sheet."""
+    ws = wb["Summary"]
+    ws.append(("", "", ""))
+    ws.append(("REGISTRY GAPS (from AST scan + .sql review)", "", ""))
+    by_kind = {}
+    for kind, *_ in REGISTRY_GAPS:
+        by_kind[kind] = by_kind.get(kind, 0) + 1
+    for kind in ("Missing setup table", "Missing business object",
+                 "Naming inconsistency", "Bug — likely typo",
+                 "Legacy duplicate", "Django-modeled, not in registry"):
+        if kind in by_kind:
+            ws.append((kind, by_kind[kind], ""))
+    ws.append(("Total registry gaps", len(REGISTRY_GAPS),
+               "See Registry_Gaps sheet"))
+
+
 def main():
     parsed = parse_objects_sql(OBJECTS_SQL)
     print(f"Parsed {len(parsed)} object rows")
@@ -533,6 +695,8 @@ def main():
     add_summary(wb, parsed)
     add_all_objects(wb, parsed)
     add_migration_plan(wb, parsed)
+    add_registry_gaps(wb)
+    update_summary_with_gaps(wb)
 
     wb.save(OUT_XLSX)
     print(f"Wrote {OUT_XLSX}")
