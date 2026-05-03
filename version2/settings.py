@@ -19,6 +19,41 @@ from dotenv import load_dotenv
 load_dotenv()
 from corsheaders.defaults import default_headers
 
+# -------------------------------
+# Sentry — install + initialize unconditionally; sentry-sdk no-ops cleanly
+# when SENTRY_DSN is unset, so dev/test stay quiet but production gets full
+# error visibility.
+# -------------------------------
+try:
+    import sentry_sdk
+    from sentry_sdk.integrations.django import DjangoIntegration
+    from sentry_sdk.integrations.celery import CeleryIntegration
+    from sentry_sdk.integrations.logging import LoggingIntegration
+    import logging as _stdlib_logging
+
+    _SENTRY_DSN = os.getenv("SENTRY_DSN", "")
+    if _SENTRY_DSN:
+        sentry_sdk.init(
+            dsn=_SENTRY_DSN,
+            integrations=[
+                DjangoIntegration(),
+                CeleryIntegration(),
+                # Forward WARNING+ stdlib logs as breadcrumbs and ERROR+ as events
+                LoggingIntegration(
+                    level=_stdlib_logging.INFO,
+                    event_level=_stdlib_logging.ERROR,
+                ),
+            ],
+            release=os.getenv("GIT_SHA", os.getenv("RELEASE", "dev")),
+            environment=os.getenv("DJANGO_ENV", "development"),
+            send_default_pii=False,
+            traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1")),
+            profiles_sample_rate=float(os.getenv("SENTRY_PROFILES_SAMPLE_RATE", "0")),
+        )
+except Exception:
+    # Never let observability tooling block app startup.
+    pass
+
 # Initialize environment variables
 env = environ.Env(
     DEBUG=(bool, False)  # Default DEBUG=False
