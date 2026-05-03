@@ -397,7 +397,7 @@
 
 
 
-from django.db import connection
+from django.db import connection, transaction
 from api.ORM.AuditLogs.audit_trail_logs import log_audit
 from api.ORM.sqlFunctions.createSQLFunction import post_data_sql
 from api.ORM.sqlFunctions.updateSQLFunction import get_instance_by_id, updateRawSQL
@@ -414,6 +414,39 @@ import logging
 from psycopg2 import sql
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Authorization constants — single source of truth.
+# ---------------------------------------------------------------------------
+# Profile types granted blanket "admin" access in the legacy profile_type
+# column. Prior to Phase 2 this list was inlined into the SQL, included a
+# duplicate 'superadmin' entry, and was easy to miss when adding a new role.
+ADMIN_ROLES: frozenset[str] = frozenset({
+    "admin",
+    "superadmin",
+    "manager",
+    "system",
+    "system_administrator",
+})
+
+# Object-level permission columns we'll accept for `check_permission`. The
+# value is interpolated into a SQL identifier (sql.Identifier) downstream;
+# the whitelist guarantees we never reflect arbitrary user input into the
+# table-column name.
+VALID_PERMISSION_TYPES: frozenset[str] = frozenset({
+    "read", "write", "edit", "delete",
+})
+
+# Sharing-records access levels. When no sharing_records row exists for an
+# object we now default to PRIVATE — the audit-flagged "Public Read Write"
+# fallback was a default-allow drift.
+DEFAULT_OBJECT_ACCESS_LEVEL = "Private"
+
+# Audit fields that must be set by the server, not the client. Any value
+# the caller submits for these is silently overwritten by apply_audit_fields.
+SERVER_SET_AUDIT_FIELDS_CREATE = ("owner_id", "created_by_id", "last_modified_by_id")
+SERVER_SET_AUDIT_FIELDS_UPDATE = ("last_modified_by_id",)
 
 # ------------------------
 # Utility: Permission & Metadata
@@ -456,11 +489,23 @@ def get_object_details(table_name, **kwargs):
     return result
 
 def profile_has_admin_access(profile_id, schema):
+    """Return True iff ``profile_id`` is one of the privileged roles.
+
+    Roles come from the ``ADMIN_ROLES`` constant — see that constant for
+    the single source of truth. Adding a new admin tier should require
+    editing exactly one place.
+    """
     cursor = connection.cursor()
     cursor.execute("SET search_path TO %s", [schema])
-    cursor.execute("SELECT COUNT(1) FROM profile WHERE id = %s AND profile_type IN ('admin', 'superadmin', 'manager', 'system', 'system_administrator', 'superadmin')", [profile_id])
-    count = cursor.fetchone()[0]
-    return count > 0
+    # Bind the role list as a parameter (psycopg2 expects a tuple for IN).
+    # The previous version inlined the literal list into the SQL string,
+    # which meant role names were hard-coded in two places (the SQL and
+    # the docstring) and 'superadmin' was duplicated by accident.
+    cursor.execute(
+        "SELECT 1 FROM profile WHERE id = %s AND profile_type = ANY(%s) LIMIT 1",
+        [profile_id, list(ADMIN_ROLES)],
+    )
+    return cursor.fetchone() is not None
 
 def get_all_fields_for_table(table_name, **kwargs):
     cursor = connection.cursor() # Ensure the search path is set to public schema
@@ -474,6 +519,18 @@ def get_all_fields_for_table(table_name, **kwargs):
     return [col[0] for col in columns]
 
 def check_permission(object_id, permission_type, **kwargs):
+    """Return True iff ``profile_id`` has ``permission_type`` on ``object_id``.
+
+    ``permission_type`` is whitelisted against ``VALID_PERMISSION_TYPES``
+    before being used as a SQL identifier — this is defence-in-depth on
+    top of ``sql.Identifier``: a typo or unexpected caller input fails
+    with a clear ValueError instead of selecting an unrelated column.
+    """
+    if permission_type not in VALID_PERMISSION_TYPES:
+        raise ValueError(
+            f"Invalid permission_type {permission_type!r}; "
+            f"expected one of {sorted(VALID_PERMISSION_TYPES)}"
+        )
     schema = kwargs.get('schema')
     profile_id = kwargs.get('profile_id')
     request = kwargs.get('request')
@@ -494,6 +551,13 @@ def check_permission(object_id, permission_type, **kwargs):
     return result
 
 def get_field_metadata(object_id, access_type, **kwargs):
+    """Return permitted_fields + per-field metadata for the caller's profile.
+
+    ``access_type`` is whitelisted against ``VALID_PERMISSION_TYPES`` so
+    the column suffix interpolated into the SQL identifier
+    (``<access_type>_access``) can never come from an attacker-controlled
+    string.
+    """
     schema = kwargs.get('schema')
     profile_id = kwargs.get('profile_id')
     request = kwargs.get('request')
@@ -501,13 +565,15 @@ def get_field_metadata(object_id, access_type, **kwargs):
     cache_key = ("field_metadata", schema, object_id, profile_id, access_type)
     if cache is not None and cache_key in cache:
         return cache[cache_key]
+    if access_type not in VALID_PERMISSION_TYPES:
+        raise ValueError(
+            f"Invalid access_type {access_type!r}; "
+            f"expected one of {sorted(VALID_PERMISSION_TYPES)}"
+        )
     try:
         cursor = connection.cursor()
 
         cursor.execute("SET search_path TO %s", [schema])
-        VALID_ACCESS_TYPES = ('read', 'edit', 'write', 'delete')
-        if access_type not in VALID_ACCESS_TYPES:
-            raise ValueError(f"Invalid access_type: {access_type}")
         access_col = sql.Identifier(f"{access_type}_access")
         query = sql.SQL("""
             SELECT f.name, f.label, f.datatype, f.required, f.parent_object,
@@ -578,23 +644,73 @@ def get_field_metadata(object_id, access_type, **kwargs):
         logger.error(f"Error fetching field metadata: {str(e)}")
         raise Exception(f"Error fetching field metadata: {str(e)}")
 
+
+def _lock_record_for_update(table_name, record_id, schema):
+    """Read a record with ``SELECT ... FOR UPDATE``, returning a dict.
+
+    Locking the row inside the same transaction as the subsequent UPDATE
+    closes the TOCTOU window where another writer could change ``owner_id``
+    between our authorization check and our write.
+
+    Caller MUST already be inside a ``transaction.atomic()`` block —
+    otherwise ``FOR UPDATE`` has no effect because the lock is released
+    immediately on autocommit.
+    """
+    validate_identifier(schema, "schema")
+    validate_identifier(table_name, "table_name")
+    with connection.cursor() as cursor:
+        cursor.execute("SET LOCAL search_path TO %s", [schema])
+        cursor.execute(
+            sql.SQL("SELECT * FROM {} WHERE id = %s FOR UPDATE").format(
+                sql.Identifier(table_name)
+            ),
+            [record_id],
+        )
+        row = cursor.fetchone()
+        if not row:
+            return None
+        columns = [desc[0] for desc in cursor.description]
+        return dict(zip(columns, row))
+
+
 def apply_audit_fields(data, mode='create', **kwargs):
+    """Stamp owner / created_by / last_modified_by from the authenticated user.
+
+    These are server-set audit fields. The previous version used
+    ``setdefault`` which honored caller-supplied values — meaning an
+    attacker could POST a record with ``owner_id`` set to another user's
+    id and silently take ownership. We now FORCE-OVERWRITE: any value the
+    client tries to set for one of these fields is dropped and replaced
+    with the authenticated user's id.
+
+    Internal callers that legitimately need to reassign ownership (e.g.
+    bulk owner-transfer admin endpoints) must build their own SQL paths
+    that go through a dedicated permission check; they should not route
+    through ``apply_audit_fields``.
+    """
     user_id = kwargs.get('user_', {}).get('id')
+    fields = (
+        SERVER_SET_AUDIT_FIELDS_CREATE if mode == 'create'
+        else SERVER_SET_AUDIT_FIELDS_UPDATE
+    )
+
+    def _stamp(entry):
+        # If the client supplied any of these, drop a structured log line
+        # so we can audit who tried.
+        clobbered = [f for f in fields if f in entry and entry.get(f) != user_id]
+        if clobbered:
+            logger.warning(
+                "apply_audit_fields: dropping client-supplied audit fields",
+                extra={"clobbered": clobbered, "user_id": user_id, "mode": mode},
+            )
+        for f in fields:
+            entry[f] = user_id
+
     if isinstance(data, list):
         for entry in data:
-            if mode == 'create':
-                entry.setdefault('owner_id', user_id)
-                entry.setdefault('created_by_id', user_id)
-                entry.setdefault('last_modified_by_id', user_id)
-            else:
-                entry['last_modified_by_id'] = user_id
+            _stamp(entry)
     elif isinstance(data, dict):
-        if mode == 'create':
-            data.setdefault('owner_id', user_id)
-            data.setdefault('created_by_id', user_id)
-            data.setdefault('last_modified_by_id', user_id)
-        else:
-            data.update({'last_modified_by_id': user_id})
+        _stamp(data)
     return data
 
 # ------------------------
@@ -637,7 +753,10 @@ def get_permissions(request, **kwargs):
             WHERE object_id = %s
         """, [object_id])
         access_row = cursor.fetchone()
-        access_level = access_row[0] if access_row else 'Public Read Write'
+        # Default-deny: missing sharing_records row means PRIVATE, not Public RW.
+        # Phase 2 changes this from the previous default-allow drift; tenants
+        # that want world-readable objects must add an explicit row.
+        access_level = access_row[0] if access_row else DEFAULT_OBJECT_ACCESS_LEVEL
 
         # Check if user has any shared records for this object
         shared_recs = fetch_shared_records(user_id, table_name, kwargs.get('schema'), type='read')
@@ -778,7 +897,8 @@ def patch_permission(request, table_name, **kwargs):
         WHERE object_id = %s
     """, [object_id])
     access_row = cursor.fetchone()
-    access_level = access_row[0] if access_row else 'Public Read Write'
+    # Default-deny: see DEFAULT_OBJECT_ACCESS_LEVEL.
+    access_level = access_row[0] if access_row else DEFAULT_OBJECT_ACCESS_LEVEL
 
     shared_recs = fetch_shared_records(user_id, table_name, kwargs.get('schema'), type='write')
 
@@ -845,61 +965,69 @@ def patch_permission(request, table_name, **kwargs):
     all_shared_ids = {str(r.get('record_id')) for r in all_shared_recs if r.get('record_id')}
     read_only_shared_ids = all_shared_ids - write_shared_ids
 
-    for record in records_to_check:
-        record_id = resolve_id_from_name(record)
-        if record_id == "__multiple__":
-            raise Exception("Unable to resolve record by 'name' for update.")
-        if not record_id:
-            if record.get("name"):
-                continue
-            raise Exception("Each record must have an 'id' or 'name' field for update.")
+    # TOCTOU FIX: lock every target row for update inside a single
+    # transaction so the ownership we check is the ownership we write
+    # against. The lock is released when the outer transaction commits,
+    # i.e. after updateRawSQL has finished applying changes below.
+    with transaction.atomic():
+        for record in records_to_check:
+            record_id = resolve_id_from_name(record)
+            if record_id == "__multiple__":
+                raise Exception("Unable to resolve record by 'name' for update.")
+            if not record_id:
+                if record.get("name"):
+                    continue
+                raise Exception("Each record must have an 'id' or 'name' field for update.")
 
-        db_record = get_instance_by_id(table_name, record_id, kwargs.get('schema', 'public'))
-        if not db_record:
-            raise Exception(f"Record not found.")
-
-        is_owner_or_superior = db_record.get('owner_id') in ids
-
-        # Records explicitly shared as read-only → deny update regardless of OWD
-        if str(record_id) in read_only_shared_ids and not is_owner_or_superior:
-            raise Exception("Access denied. Record is shared as read-only.")
-
-        # Private / Public Read Only / no object permission → must be owner, subordinate, or write-shared
-        if access_level in ['Private', 'Public Read Only'] or not has_object_permission:
-            if not is_owner_or_superior and str(record_id) not in write_shared_ids:
-                raise Exception(f"Access denied.")
-
-    permitted_fields, fields_metadata = get_field_metadata(object_id, "edit", **kwargs)
-
-    updated_data = kwargs.pop('update_data', None)
-    modified_data = apply_audit_fields(updated_data, mode='update', **kwargs)
-
-    kwargs.pop("fields", None)
-
-    result = updateRawSQL(
-        object_name=table_name,
-        update_data=modified_data,
-        fields_metadata=fields_metadata,
-        section=f"Update - {table_name}",
-        # Object-level update: enable lookup validation (name → id resolution)
-        enable_lookup_validation=True,
-        **kwargs
-    )
-
-        # 🔄 Handle child tables update
-    for child in child_tables:
-        child_table = child.get('table')
-        child_records = child.get('records', [])
-
-        for record in child_records:
-            record = apply_audit_fields(record, mode='update', **kwargs)
-            updateRawSQL(
-                object_name=child_table,
-                update_data=record,
-                section=f"Update - {child_table}",
-                enable_lookup_validation=True,
-                **kwargs
+            db_record = _lock_record_for_update(
+                table_name, record_id, kwargs.get('schema', 'public')
             )
+            if not db_record:
+                raise Exception(f"Record not found.")
+
+            is_owner_or_superior = db_record.get('owner_id') in ids
+
+            # Records explicitly shared as read-only → deny update regardless of OWD
+            if str(record_id) in read_only_shared_ids and not is_owner_or_superior:
+                raise Exception("Access denied. Record is shared as read-only.")
+
+            # Private / Public Read Only / no object permission → must be
+            # owner, subordinate, or write-shared.
+            if access_level in ['Private', 'Public Read Only'] or not has_object_permission:
+                if not is_owner_or_superior and str(record_id) not in write_shared_ids:
+                    raise Exception(f"Access denied.")
+
+        permitted_fields, fields_metadata = get_field_metadata(object_id, "edit", **kwargs)
+
+        updated_data = kwargs.pop('update_data', None)
+        modified_data = apply_audit_fields(updated_data, mode='update', **kwargs)
+
+        kwargs.pop("fields", None)
+
+        result = updateRawSQL(
+            object_name=table_name,
+            update_data=modified_data,
+            fields_metadata=fields_metadata,
+            section=f"Update - {table_name}",
+            # Object-level update: enable lookup validation (name → id resolution)
+            enable_lookup_validation=True,
+            **kwargs
+        )
+
+            # 🔄 Handle child tables update
+        for child in child_tables:
+            child_table = child.get('table')
+            child_records = child.get('records', [])
+
+            for record in child_records:
+                record = apply_audit_fields(record, mode='update', **kwargs)
+                updateRawSQL(
+                    object_name=child_table,
+                    update_data=record,
+                    section=f"Update - {child_table}",
+                    enable_lookup_validation=True,
+                    **kwargs
+                )
     try:
         if result.get('updated_records'):
             for i in result.get('updated_records', []):  
@@ -944,7 +1072,8 @@ def delete_permission(request, table_name, **kwargs):
         WHERE object_id = %s
     """, [object_id])
     access_row = cursor.fetchone()
-    access_level = access_row[0] if access_row else 'Public Read Write'
+    # Default-deny: see DEFAULT_OBJECT_ACCESS_LEVEL.
+    access_level = access_row[0] if access_row else DEFAULT_OBJECT_ACCESS_LEVEL
 
     user_id = kwargs.get('user_', {}).get('id')
     shared_recs = fetch_shared_records(user_id, table_name, kwargs.get('schema'), type='delete')
@@ -962,51 +1091,61 @@ def delete_permission(request, table_name, **kwargs):
     no_delete_shared_ids = all_shared_ids - delete_shared_ids
 
     record_ids = kwargs.get('ids', [])
-    for record_id in record_ids:
-        record_data = get_instance_by_id(table_name, record_id, schema=kwargs.get('schema', 'public'))
-        if not record_data:
-            raise Exception(f"Record with id={record_id} not found in {table_name}.")
-
-        is_owner_or_superior = record_data.get('owner_id') in ids
-
-        # Records explicitly shared without delete access → deny regardless of OWD
-        if str(record_id) in no_delete_shared_ids and not is_owner_or_superior:
-            raise Exception(f"You do not have permission to delete record {record_id} in '{object_label}'.")
-
-        # Private / Public Read Only / no object permission → must be owner, subordinate, or delete-shared
-        if access_level in ['Private', 'Public Read Only'] or not has_object_permission:
-            if not is_owner_or_superior and str(record_id) not in delete_shared_ids:
-                raise Exception(f"You do not have permission to delete record {record_id} in '{object_label}'.")
     data = {}
-    try:
-        id = kwargs.get('ids')[0]
-        query = sql.SQL("SELECT * FROM {} WHERE id = %s").format(sql.Identifier(table_name))
-        cursor.execute(query, [id])
-        result = cursor.fetchone()
-        if result:
-            # Convert the result into a key-value pair (dictionary)
-            column_names = [desc[0] for desc in cursor.description]  # Get column names
-            result_dict = dict(zip(column_names, result))
-            data = execute_workflows(result_dict, table_name, "delete_records", **kwargs)
-    except Exception as e:
-        logger.error(f"Error executing workflows: {str(e)}")
-    
-    if isinstance(kwargs.get('ids'), list):
-        log_audit(
-            f'Mass Deleted records in {table_name}',
-            'Mass Delete',
+    # TOCTOU FIX: lock every target row, run authz, run delete inside ONE
+    # transaction. Releases on commit (after delete_data_sql below).
+    with transaction.atomic():
+        for record_id in record_ids:
+            record_data = _lock_record_for_update(
+                table_name, record_id, kwargs.get('schema', 'public')
+            )
+            if not record_data:
+                raise Exception(f"Record with id={record_id} not found in {table_name}.")
+
+            is_owner_or_superior = record_data.get('owner_id') in ids
+
+            # Records explicitly shared without delete access → deny regardless of OWD
+            if str(record_id) in no_delete_shared_ids and not is_owner_or_superior:
+                raise Exception(
+                    f"You do not have permission to delete record {record_id} in '{object_label}'."
+                )
+
+            # Private / Public Read Only / no object permission → must be
+            # owner, subordinate, or delete-shared.
+            if access_level in ['Private', 'Public Read Only'] or not has_object_permission:
+                if not is_owner_or_superior and str(record_id) not in delete_shared_ids:
+                    raise Exception(
+                        f"You do not have permission to delete record {record_id} in '{object_label}'."
+                    )
+
+        try:
+            id = kwargs.get('ids')[0]
+            query = sql.SQL("SELECT * FROM {} WHERE id = %s").format(sql.Identifier(table_name))
+            cursor.execute(query, [id])
+            result = cursor.fetchone()
+            if result:
+                column_names = [desc[0] for desc in cursor.description]
+                result_dict = dict(zip(column_names, result))
+                data = execute_workflows(result_dict, table_name, "delete_records", **kwargs)
+        except Exception as e:
+            logger.error(f"Error executing workflows: {str(e)}")
+
+        if isinstance(kwargs.get('ids'), list):
+            log_audit(
+                f'Mass Deleted records in {table_name}',
+                'Mass Delete',
+                **kwargs
+            )
+        result = delete_data_sql(
+            table_name,
+            kwargs.get('ids'),
+            section=f"Delete - {table_name}",
             **kwargs
-        )            
-    result = delete_data_sql(
-        table_name,
-        kwargs.get('ids'),
-        section=f"Delete - {table_name}",
-        **kwargs
-    ) 
+        )
     if data and "authurl" in data:
         result["authurl"] = data["authurl"]
         result["verification"] = True
-        return result  
+        return result
     return result
 
 
