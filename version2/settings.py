@@ -198,6 +198,10 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # Statement-timeout LAST in the chain so it sees the resolved URL
+    # (CommonMiddleware's append-slash redirect runs first) and the
+    # timeout only applies to the actual view handling.
+    'api.security.statement_timeout.StatementTimeoutMiddleware',
     # 'api.middleware.SharingMiddleware',
 ]
 
