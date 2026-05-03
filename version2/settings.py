@@ -186,6 +186,8 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    # Correlation ID FIRST so every other middleware's logs carry the trace_id.
+    'api.security.correlation.RequestCorrelationMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
@@ -198,6 +200,68 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     # 'api.middleware.SharingMiddleware',
 ]
+
+
+# -------------------------------
+# Structured logging
+# -------------------------------
+# JSON formatter when LOG_FORMAT=json (production); text otherwise (dev).
+# RequestContextFilter injects trace_id/tenant_id/user_id from contextvars
+# into every record, so log lines carry request-correlation IDs even when
+# emitted from nested layers (BL, ORM, Celery).
+_LOG_FORMAT = os.getenv("LOG_FORMAT", "text").lower()
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "filters": {
+        "request_context": {
+            "()": "api.security.correlation.RequestContextFilter",
+        },
+    },
+    "formatters": {
+        "text": {
+            "format": (
+                "%(asctime)s %(levelname)s %(name)s "
+                "[trace=%(trace_id)s tenant=%(tenant_id)s user=%(user_id)s] "
+                "%(message)s"
+            ),
+        },
+        "json": {
+            "()": "logging.Formatter",
+            "format": (
+                '{"ts":"%(asctime)s","level":"%(levelname)s",'
+                '"logger":"%(name)s","trace_id":"%(trace_id)s",'
+                '"tenant_id":"%(tenant_id)s","user_id":"%(user_id)s",'
+                '"msg":%(message)r}'
+            ),
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "json" if _LOG_FORMAT == "json" else "text",
+            "filters": ["request_context"],
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": os.getenv("LOG_LEVEL", "INFO"),
+    },
+    "loggers": {
+        # Django's request logger is too chatty at INFO and reasonable at WARNING.
+        "django.request": {
+            "handlers": ["console"],
+            "level": "WARNING",
+            "propagate": False,
+        },
+        "django.security": {
+            "handlers": ["console"],
+            "level": "WARNING",
+            "propagate": False,
+        },
+    },
+}
 
 
 ROOT_URLCONF = 'version2.urls'

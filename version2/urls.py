@@ -22,6 +22,10 @@ from django.conf.urls.static import static
 
 
 urlpatterns = [
+    # Probes — unauthenticated; respond before auth middleware runs so
+    # k8s/ECS/load-balancer health-checks always succeed.
+    path('', include('api.health.urls')),
+
     path('admin/', admin.site.urls),
     path('v2/', include('adminuser.urls')),
     path('v2/', include('api.urls')),
