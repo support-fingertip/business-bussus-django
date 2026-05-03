@@ -3,9 +3,27 @@ from django.db import models
 
 
 from django.contrib.auth.models import  PermissionsMixin, UserManager, AbstractBaseUser
-from django.utils import timezone 
+from django.utils import timezone
 from django.utils.timezone import now
 import os
+
+# Re-export tenant-scoped models so Django picks them up under the `api`
+# app. See `api/tenant_models/__init__.py` for the per-tenant model
+# definitions; they are all managed=False (Django doesn't own their schema).
+from api.tenant_models import (  # noqa: F401  (re-exported for app discovery)
+    PlatformObject,
+    Field,
+    Profile,
+    Role,
+    UserGroup,
+    UserGroupUser,
+    ObjectPermission,
+    FieldPermission,
+    TabPermission,
+    AppPermission,
+    SharingRecord,
+    OrganizationWideDefault,
+)
 
 def organization_logo_path(instance, filename):
     return f"uploads/{instance.name}/{filename}"
