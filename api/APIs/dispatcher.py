@@ -1,3 +1,5 @@
+import logging
+
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -8,9 +10,34 @@ from public.utils.exists import error_record
 from ..notifications.notify import get_admin, trigger_notication
 from channels.layers import get_channel_layer
 
+logger = logging.getLogger(__name__)
+
+
+def _safe_500(exc, request, action):
+    """Log full exception server-side, return generic message to client."""
+    logger.error(
+        "Dispatcher %s failed: %s",
+        action,
+        exc,
+        exc_info=True,
+        extra={
+            "user_id": getattr(getattr(request, "user_", None) or {}, "get",
+                               lambda *_: None)("id") if isinstance(
+                getattr(request, "user_", None), dict) else None,
+            "schema": getattr(request, "schema", None),
+            "path": getattr(request, "path", None),
+        },
+    )
+    error_record(er=exc)
+    return Response(
+        {"message": "An internal error occurred. Please try again later."},
+        status=500,
+    )
+
+
 class Dispatcher(APIView):
-    authentication_classes = [CustomJWTAuthentication]  # Custom JWT Authentication
-    # permission_classes = [IsAuthenticated]
+    authentication_classes = [CustomJWTAuthentication]
+    permission_classes = [IsAuthenticated]
 
     def __init__(self, **kwargs):
         self.channel = get_channel_layer()
@@ -72,8 +99,7 @@ class Dispatcher(APIView):
         except PermissionError as e:
             return Response({"message": str(e)}, status=403)
         except Exception as e:
-            error_record(er=e)
-            return Response({"message": str(e)}, status=500)
+            return _safe_500(e, request, "GET")
 
     def post(self, request, object_name, another_object=None, param3=None):
         data = request.data
@@ -105,8 +131,7 @@ class Dispatcher(APIView):
         except PermissionError as e:
             return Response({"message": str(e)}, status=403)
         except Exception as e:
-            error_record(er=e)
-            return Response({"message": str(e)}, status=500)
+            return _safe_500(e, request, "POST")
 
     def patch(self, request, object_name, another_object=None, param3=None):
         data = request.data
@@ -129,8 +154,7 @@ class Dispatcher(APIView):
         except PermissionError as e:
             return Response({"message": str(e)}, status=403)
         except Exception as e:
-            error_record(er=e)
-            return Response({"message": str(e)}, status=500)
+            return _safe_500(e, request, "PATCH")
 
     def delete(self, request, object_name, another_object=None, param3=None):
         data = request.data
@@ -151,5 +175,4 @@ class Dispatcher(APIView):
         except PermissionError as e:
             return Response({"message": str(e)}, status=403)
         except Exception as e:
-            error_record(er=e)
-            return Response({"message": str(e)}, status=500)
+            return _safe_500(e, request, "DELETE")
