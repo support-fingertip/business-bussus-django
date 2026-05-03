@@ -448,6 +448,12 @@ DEFAULT_OBJECT_ACCESS_LEVEL = "Private"
 SERVER_SET_AUDIT_FIELDS_CREATE = ("owner_id", "created_by_id", "last_modified_by_id")
 SERVER_SET_AUDIT_FIELDS_UPDATE = ("last_modified_by_id",)
 
+# Subset that admins are sometimes allowed to override during legitimate
+# data-import / owner-transfer flows. ``apply_audit_fields(allow_owner_override=True)``
+# leaves these alone if the caller supplied them; everything else still
+# gets force-overwritten.
+ADMIN_OVERRIDABLE_AUDIT_FIELDS = ("owner_id",)
+
 # ------------------------
 # Utility: Permission & Metadata
 # ------------------------
@@ -673,7 +679,13 @@ def _lock_record_for_update(table_name, record_id, schema):
         return dict(zip(columns, row))
 
 
-def apply_audit_fields(data, mode='create', **kwargs):
+def apply_audit_fields(
+    data,
+    mode='create',
+    *,
+    allow_owner_override=False,
+    **kwargs,
+):
     """Stamp owner / created_by / last_modified_by from the authenticated user.
 
     These are server-set audit fields. The previous version used
@@ -683,10 +695,19 @@ def apply_audit_fields(data, mode='create', **kwargs):
     client tries to set for one of these fields is dropped and replaced
     with the authenticated user's id.
 
-    Internal callers that legitimately need to reassign ownership (e.g.
-    bulk owner-transfer admin endpoints) must build their own SQL paths
-    that go through a dedicated permission check; they should not route
-    through ``apply_audit_fields``.
+    ``allow_owner_override`` (keyword-only) is the deliberate escape hatch
+    for legitimate admin flows — bulk owner-transfer endpoints, CSV
+    imports, lead-conversion handoff. When True:
+      - ``owner_id`` keeps the caller-supplied value (if present);
+      - ``created_by_id`` and ``last_modified_by_id`` are still
+        force-overwritten so audit trail integrity is preserved.
+
+    The flag must be set explicitly by trusted internal code paths;
+    never expose it through HTTP request kwargs. Every override is
+    logged with ``allow_owner_override=True`` so security review can
+    diff legitimate transfers from accidents.
+
+    See ``ADMIN_OVERRIDABLE_AUDIT_FIELDS`` for the exact subset.
     """
     user_id = kwargs.get('user_', {}).get('id')
     fields = (
@@ -694,16 +715,42 @@ def apply_audit_fields(data, mode='create', **kwargs):
         else SERVER_SET_AUDIT_FIELDS_UPDATE
     )
 
+    # When the override flag is on, exclude the override-eligible fields
+    # from the "always force" list — but ONLY if the caller actually
+    # supplied a value for them. Missing fields still get the default.
+    overridable = set(ADMIN_OVERRIDABLE_AUDIT_FIELDS) if allow_owner_override else set()
+
     def _stamp(entry):
-        # If the client supplied any of these, drop a structured log line
-        # so we can audit who tried.
-        clobbered = [f for f in fields if f in entry and entry.get(f) != user_id]
+        # Audit log: who supplied what.
+        clobbered = [
+            f for f in fields
+            if f in entry and entry.get(f) != user_id and f not in overridable
+        ]
         if clobbered:
             logger.warning(
                 "apply_audit_fields: dropping client-supplied audit fields",
                 extra={"clobbered": clobbered, "user_id": user_id, "mode": mode},
             )
+        # When the override is in effect AND the caller actually assigned
+        # one of the overridable fields, log THAT too so security review
+        # can spot legitimate transfers vs. mistaken ones.
+        if overridable:
+            transferred = [f for f in overridable if entry.get(f) and entry[f] != user_id]
+            if transferred:
+                logger.info(
+                    "apply_audit_fields: admin owner override applied",
+                    extra={
+                        "transferred": transferred,
+                        "by_user_id": user_id,
+                        "mode": mode,
+                        "new_owner_id": entry.get("owner_id"),
+                    },
+                )
+
         for f in fields:
+            if f in overridable and entry.get(f):
+                # Caller supplied a value AND override is on → keep it.
+                continue
             entry[f] = user_id
 
     if isinstance(data, list):
