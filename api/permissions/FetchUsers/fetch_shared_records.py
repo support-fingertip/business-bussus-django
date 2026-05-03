@@ -1,8 +1,28 @@
+"""Per-RECORD sharing grants — see ``shared_records`` table.
+
+Naming caution:
+  * ``shared_records``   ← THIS module. PER-RECORD ad-hoc grants
+                            (record_id + user_id + access_mask +
+                            expires_at). Used to share a single record
+                            with one extra user temporarily.
+  * ``sharing_records``  ← DIFFERENT TABLE. PER-OBJECT default access
+                            level (Private / Public Read Only /
+                            Public Read Write). One row per object.
+                            See ``api/tenant_models/sharing.py``.
+
+These two tables sound nearly identical and they are NOT the same.
+Don't conflate them when writing queries or new code.
+"""
+
 from django.db import connection
 
 def fetch_shared_records(user_id, object_name, schema, type='read'):
     """
     Fetch records shared with the user for a specific object.
+
+    Reads from the ``shared_records`` table — the per-RECORD ad-hoc
+    grants (record_id + user_id + access_mask + expires_at). NOT
+    ``sharing_records`` (per-object default access level).
 
     type can be a single permission string ('read', 'write', 'delete', 'share')
     or a combined string like 'read/write' to match records with ANY of those permissions.
