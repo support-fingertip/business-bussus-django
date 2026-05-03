@@ -236,3 +236,45 @@ def assert_pinned_schema(request, schema: Optional[str]) -> str:
             extra=_safe_log_extra(pinned=pinned, attempted=schema),
         )
     return pinned
+
+
+def get_validated_schema(kwargs: dict) -> Optional[str]:
+    """Convenience wrapper for the ``schema = kwargs.get('schema')`` pattern.
+
+    The legacy pattern across the codebase is:
+
+        def some_function(**kwargs):
+            schema = kwargs.get('schema')
+            # ... use schema ...
+
+    Phase 1's ``schema_authority.pin_request_tenant`` populates
+    ``request.tenant_schema`` as the single canonical source. This
+    helper threads that through the legacy kwargs pattern: it reads
+    ``request`` from kwargs, calls ``assert_pinned_schema`` to verify
+    the kwarg matches the pinned value, and returns the canonical
+    schema.
+
+    Behaviour:
+      - If ``request`` is in kwargs and has a ``tenant_schema``
+        attribute, the kwarg value (if any) must match — mismatch
+        raises ``TenantViolation`` (or logs in soak mode).
+      - If no request is provided OR the request hasn't been pinned
+        (e.g. a Celery task without ``with_tenant_schema``), the
+        kwarg value is returned as-is.
+      - The return value is identical in shape to ``kwargs.get('schema')``
+        so the helper is a drop-in replacement.
+
+    Migration path:
+        # Before
+        schema = kwargs.get('schema')
+        # After
+        schema = get_validated_schema(kwargs)
+
+    During the soak window (``SCHEMA_AUTHORITY_ENFORCE=0``) this
+    surfaces every caller that's passing the wrong schema as a
+    WARNING log line, without breaking the request. Flip the env
+    var to enforce once the warnings are gone.
+    """
+    return assert_pinned_schema(
+        kwargs.get("request"), kwargs.get("schema")
+    )
