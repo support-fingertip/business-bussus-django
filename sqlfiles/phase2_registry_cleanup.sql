@@ -11,7 +11,7 @@
 BEGIN;
 
 -- (1) Drop vestigial registry rows.
-DELETE FROM object WHERE name IN ('apex_class', 'approval_processes', 'audit_trails', 'auth_group', 'auth_group_permissions', 'auth_permission', 'call_logs', 'columns_metadata', 'component', 'connected_app', 'custom_metadata', 'custom_setting', 'customers', 'duplicate_rule', 'flows', 'group_assignment_tracker', 'hsitory', 'import_wizard', 'invoice_items', 'invoices', 'lightning_pages', 'matching_rule', 'named_credential', 'node', 'owd', 'package', 'permission_sets', 'process_builders', 'products', 'regions', 'remote_site_setting', 'roles', 'sales', 'setup', 'sf_integration_lead', 'sharing_rules', 'tables_metadata', 'tabs', 'theme', 'users_user_permissions', 'workflow_rules');
+DELETE FROM object WHERE name IN ('apex_class', 'approval_processes', 'audit_trails', 'auth_group', 'auth_group_permissions', 'auth_permission', 'call_logs', 'columns_metadata', 'component', 'connected_app', 'custom_metadata', 'custom_setting', 'customers', 'duplicate_rule', 'flows', 'group_assignment_tracker', 'hsitory', 'import_wizard', 'invoice_items', 'invoices', 'lightning_pages', 'matching_rule', 'named_credential', 'node', 'owd', 'package', 'permission_sets', 'process_builders', 'products', 'regions', 'remote_site_setting', 'roles', 'sales', 'setup', 'sf_integration_lead', 'sharing_rules', 'tables_metadata', 'tabs', 'theme', 'users_user_permissions', 'workflow_rules', 'dashboard_folder');
 
 -- (2) Rename 'reports' → 'report' so the registry name matches
 --     the actual table created by default_tables.sql.

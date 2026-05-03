@@ -100,6 +100,10 @@ RENAME = ("reports", "report", "Report", "Reports")  # old, new, label, plural
 # Verified via grep -rE '(FROM|INTO|UPDATE)\s+<name>\b' against every
 # Python source root; only `lead_capture` had hits (kept).
 # ---------------------------------------------------------------------------
+# Includes ``dashboard_folder`` (singular) — discovered during the
+# DDL cross-check: the actual table is ``dashboard_folders`` (plural)
+# per default_tables.sql and the mockdata seeds; the singular registry
+# row is dead. The plural form was added in ADDITIONS_SETUP above.
 DELETIONS_VESTIGIAL = [
     "apex_class",
     "approval_processes",
@@ -142,6 +146,9 @@ DELETIONS_VESTIGIAL = [
     "theme",
     "users_user_permissions",
     "workflow_rules",
+    # Naming clash: registry had `dashboard_folder` (singular); actual
+    # table is `dashboard_folders` (plural; see default_tables.sql:356).
+    "dashboard_folder",
 ]
 
 
