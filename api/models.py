@@ -1,0 +1,203 @@
+import uuid
+from django.db import models
+
+
+from django.contrib.auth.models import  PermissionsMixin, UserManager, AbstractBaseUser
+from django.utils import timezone 
+from django.utils.timezone import now
+import os
+
+def organization_logo_path(instance, filename):
+    return f"uploads/{instance.name}/{filename}"
+
+class Organization(models.Model):
+    """Model representing an organization/tenant in the system."""
+    id = models.CharField(max_length=64, primary_key=True, editable=False)
+    name = models.CharField(max_length=255, unique=True)
+    database_schema = models.CharField(max_length=63, unique=True)
+    is_active = models.BooleanField(default=True)
+    created_date = models.DateTimeField(default=timezone.now)
+    logo = models.ImageField(upload_to=organization_logo_path, null=True, blank=True)
+    
+    class Meta:
+        db_table = 'organizations'
+        verbose_name = 'Organization'
+        verbose_name_plural = 'Organizations'
+    
+    def __str__(self):
+        return self.name
+    
+    def save(self, *args, **kwargs):
+        if not self.id:
+            self.id = f"org_{uuid.uuid4().hex[:10]}"
+        else:
+            try:
+                old_org = Organization.objects.get(pk=self.id)
+                if old_org.logo and self.logo and old_org.logo != self.logo:
+                    old_org.logo.delete(save=False)
+            except Organization.DoesNotExist:
+                pass
+        super().save(*args, **kwargs)
+
+
+class CustomUserManager(UserManager):
+    def _create_user(self, email, password, **extra_fields):
+        if not email:
+            ValueError("Email not provided")
+        if 'id' not in extra_fields or not extra_fields['id']:
+            extra_fields['id'] = str(uuid.uuid4().hex[:10])
+        email = self.normalize_email(email)
+        user = self.model(email=email, **extra_fields)
+        user.set_password(password)
+        user.save(using=self._db)
+        
+        return user
+    
+    def create_user(self, email=None, password=None, **extra_fields):
+        extra_fields.setdefault('is_staff', False)
+        extra_fields.setdefault('is_superuser', False)
+        return self._create_user(email, password, **extra_fields)
+    
+    def create_superuser(self, email=None, password=None, **extra_fields):
+        extra_fields.setdefault('is_staff', True)
+        extra_fields.setdefault('is_superuser', True)
+        return self._create_user(email, password, **extra_fields)
+    
+
+class User(AbstractBaseUser, PermissionsMixin):
+    id = models.CharField(max_length=64, primary_key=True, editable=False)
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, null=True, blank=True, db_column='organization_id')
+    email = models.EmailField(default='', blank=True, unique=True)
+    name = models.CharField(default='', max_length=255, blank=True)
+    username = models.CharField(default='', max_length=255, blank=True)
+    phone = models.CharField(default='', max_length=255, blank=True, null=True)
+    first_name = models.CharField(max_length=255, blank=True, null=True)
+    last_name = models.CharField(max_length=255, blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+    is_superuser = models.BooleanField(default=False)
+    is_staff = models.BooleanField(default=False)
+    alias = models.CharField(max_length=255, blank=True, null=True)
+    profile_id = models.CharField(max_length=255, blank=True, null=True)
+    role_id = models.CharField(max_length=255, blank=True, null=True)
+    manager_id = models.CharField(max_length=64, blank=True, null=True)
+    time_zone_sid_key = models.CharField(max_length=100, blank=True, null=True)
+    timezone = models.CharField(max_length=100, blank=True, null=True)
+    locale = models.CharField(max_length=100, blank=True, null=True)
+    locale_sid_key = models.CharField(max_length=100, blank=True, null=True)
+    email_encoding_key = models.CharField(max_length=100, blank=True, null=True)
+    language_locale_key = models.CharField(max_length=100, blank=True, null=True)
+    user_type = models.CharField(max_length=100, blank=True, null=True)
+    email_preferences_auto_bcc = models.BooleanField(default=False, blank=True, null=True)
+    email_preferences_auto_bcc_stay_in_touch = models.BooleanField(default=False, blank=True, null=True)
+    
+    created_date = models.DateTimeField(auto_now_add=True)
+    last_modified_date = models.DateTimeField(auto_now=True)
+    last_login = models.DateTimeField(null=True, blank=True)
+    
+    company = models.CharField(max_length=255, blank=True, null=True)
+    app_password = models.CharField(max_length=128, blank=True, null=True)
+    
+    is_email_verified = models.BooleanField(default=False)
+
+    objects = CustomUserManager()
+    
+    USERNAME_FIELD = 'email'
+    EMAIL_FIELD = 'email'
+    REQUIRED_FIELDS = []
+    
+    class Meta:
+        db_table = 'users'
+        verbose_name = 'User'
+        verbose_name_plural = 'Users'
+    def get_full_name(self):
+        return self.name
+    
+    def get_short_name(self):
+        return self.name or self.email.split('@')[0]        
+
+
+class SessionLog(models.Model):
+    id = models.CharField(max_length=64, primary_key=True, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="sessions")
+    profile_id = models.CharField(max_length=20, null=False)
+    company_name = models.CharField(max_length=255)
+    login_time = models.DateTimeField(default=now)
+    logout_time = models.DateTimeField(null=True, blank=True)
+    access_token = models.CharField(max_length=500)
+    refresh_token = models.CharField(max_length=500)  # Store refresh token securely
+    expiry_time = models.DateTimeField(null=True, blank=True)  # Optional: expiry of the session
+    ip_address = models.GenericIPAddressField(null=True, blank=True)  # For IPv4 and IPv6
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)  # Latitude
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    
+    class Meta:
+        db_table = 'session_log'
+        verbose_name = 'Session Log'
+        verbose_name_plural = 'Session Logs'
+  
+    def save(self, *args, **kwargs):
+        if not self.id:  # Generate a UUID-based ID
+            random_id = uuid.uuid4().hex[:10]  # Take the first 9 characters of a UUID
+            self.id = f"087ulin{random_id}hs"
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"Session for {self.user.username} (Profile ID: {self.profile_id}) at {self.login_time} access_token: {self.access_token[-4:]}"
+    
+    
+    
+class UserLoginHistory(models.Model):
+    id = models.CharField(max_length=64, primary_key=True, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
+    login_time = models.DateTimeField(auto_now_add=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    login_type = models.CharField(max_length=50, choices=[('success', 'Success'), ('failed', 'Failed')], default='success')
+    status = models.CharField(max_length=50, default='Success')  # Success, Failed, Locked, etc.
+    browser = models.CharField(max_length=255, null=True, blank=True)
+    location = models.CharField(max_length=50, default='Unknown')  
+    platform = models.CharField(max_length=255, null=True, blank=True)
+    application = models.CharField(max_length=255, default='Web')  # Default to 'Web' (or can be dynamic)
+    client_version = models.CharField(max_length=255, null=True, blank=True)
+    api_type = models.CharField(max_length=50, null=True, blank=True)
+    api_version = models.CharField(max_length=50, null=True, blank=True)
+    login_url = models.URLField(max_length=512, null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.user.username if self.user else 'Unknown'} logged in at {self.login_time}"
+
+    class Meta:
+        ordering = ['-login_time']
+        db_table = 'user_login_history'
+        verbose_name = 'Login History'
+        verbose_name_plural = 'Login History'
+  
+    def save(self, *args, **kwargs):
+        if not self.id:  # Generate a UUID-based ID
+            random_id = uuid.uuid4().hex[:10]  # Take the first 9 characters of a UUID
+            self.id = f"087ulin{random_id}hs"
+        super().save(*args, **kwargs)
+
+        
+    
+    
+    
+# class FacebookLeadWebhooks(models.Model):
+#     id = models.CharField(primary_key=True, editable=False, max_length=64)
+#     webhook = models.URLField(max_length=1024),
+#     lead_id = models.CharField(max_length=32)
+#     page_id = models.CharField(max_length=32)
+#     ad_id = models.CharField(max_length=32)
+#     created_by = models.ForeignKey(User, related_name='fbh_created_by', on_delete=models.CASCADE)
+#     created_date = models.DateField(auto_now_add=True)
+    
+#     def save(self, *args, **kwargs):
+#         if not self.id:  # Generate a UUID-based ID
+#             random_id = uuid.uuid4().hex[:10]  # Take the first 9 characters of a UUID
+#             self.id = f"0044flws{random_id}as"
+#         super().save(*args, **kwargs)
+
+#     class Meta:
+#         db_table = 'facebookleadwebhooks'
+#         verbose_name = 'App'
+#         verbose_name_plural = 'Apps'
+

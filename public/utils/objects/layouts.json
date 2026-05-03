@@ -1,0 +1,3747 @@
+{
+    "invoice": {
+        "id": "GEN_18997a9a7",
+        "object_name": "invoice",
+        "name": "new_layout",
+        "label": "New Layout",
+        "sections": [
+            {
+                "id": "section_1",
+                "title": "Basic Information",
+                "fields": [
+                    "account_id",
+                    "email",
+                    "store",
+                    "quantity",
+                    "invoice_outstanding_amount",
+                    "balance",
+                    "payment_status",
+                    "aging",
+                    "invoice_date",
+                    "due_date",
+                    "closed_date",
+                    "offer",
+                    "total_amount",
+                    "total_tax",
+                    "grand_total"
+                ]
+            },
+            {
+                "id": "section_2",
+                "title": "System Information",
+                "fields": [
+                    "owner_id",
+                    "created_date",
+                    "created_by_id",
+                    "last_modified_by_id"
+                ]
+            }
+        ],
+        "related_lists": [
+            {
+                "fields": [],
+                "object": {
+                    "id": "file_id",
+                    "name": "file",
+                    "label": "Files"
+                },
+                "is_added": false,
+                "related_field": {
+                    "id": "file_record_id",
+                    "name": "record_id",
+                    "label": "File",
+                    "datatype": "file"
+                }
+            },
+            {
+                "fields": [
+                    {
+                        "id": "fLd_2bd366078b",
+                        "name": "name",
+                        "label": "Invoice Item Number",
+                        "order": 0,
+                        "visible": true,
+                        "datatype": "auto_number"
+                    },
+                    {
+                        "id": "fLd_735bdc0ef3",
+                        "name": "product",
+                        "label": "Product",
+                        "order": 1,
+                        "visible": true,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_8d227d69d1",
+                        "name": "quantity",
+                        "label": "Quantity",
+                        "order": 2,
+                        "visible": true,
+                        "datatype": "number"
+                    },
+                    {
+                        "id": "fLd_bf09843bcc",
+                        "name": "unit_price",
+                        "label": "Unit Price",
+                        "order": 3,
+                        "visible": true,
+                        "datatype": "currency"
+                    },
+                    {
+                        "id": "fLd_2465d55b24",
+                        "name": "total_amount",
+                        "label": "Total Amount",
+                        "order": 4,
+                        "visible": true,
+                        "datatype": "formula"
+                    },
+                    {
+                        "id": "fLd_d7e389badf",
+                        "name": "grant_total",
+                        "label": "Grant Total",
+                        "order": 5,
+                        "visible": true,
+                        "datatype": "formula"
+                    }
+                ],
+                "object": {
+                    "id": "invoice_item_id",
+                    "name": "invoice_item",
+                    "label": "Invoice Item"
+                },
+                "is_added": true,
+                "related_field": {
+                    "id": "invoice_item_invoice_id_id",
+                    "name": "invoice_id",
+                    "label": "Invoice",
+                    "datatype": "lookup_relationship"
+                }
+            }
+        ]
+    },
+    "quote": {
+        "id": "GEN_155a81811",
+        "object_name": "quote",
+        "name": "new_layout",
+        "label": "New Layout",
+        "sections": [
+            {
+                "id": "section_1",
+                "title": "Basic Information",
+                "fields": [
+                    "quote_number",
+                    "expiration_date",
+                    "name",
+                    "status",
+                    "opportunity_id",
+                    "description"
+                ]
+            },
+            {
+                "id": "section_2",
+                "title": "Quoted Items",
+                "fields": [
+                    "product_id",
+                    "discount",
+                    "quantity",
+                    "grant_total",
+                    "list_price",
+                    "tax",
+                    "sub_total"
+                ]
+            },
+            {
+                "id": "section_3",
+                "title": "Address Information",
+                "fields": [
+                    "shipping_home_apartment_no",
+                    "billing_home_apartment_no",
+                    "shipping_city",
+                    "billing city",
+                    "shipping_state",
+                    "billing_state",
+                    "shipping_postal_code",
+                    "billing_postal_code",
+                    "shipping_country",
+                    "billing_country"
+                ]
+            },
+            {
+                "id": "section_4",
+                "title": "System Information",
+                "fields": [
+                    "owner_id",
+                    "created_date",
+                    "created_by_id",
+                    "last_modified_by_id"
+                ]
+            }
+        ],
+        "related_lists": [
+            {
+                "fields": [
+                    {
+                        "fields": [],
+                        "object": {
+                            "id": "file_id",
+                            "name": "file",
+                            "label": "Files"
+                        },
+                        "is_added": false,
+                        "related_field": {
+                            "id": "file_record_id",
+                            "name": "record_id",
+                            "label": "File",
+                            "datatype": "file"
+                        }
+                    },
+                    {
+                        "id": "fLd_24eb29f405",
+                        "name": "name",
+                        "label": "Quote Line Item Number",
+                        "order": 0,
+                        "visible": true,
+                        "datatype": "auto_number"
+                    },
+                    {
+                        "id": "fLd_b4ba2d62fb",
+                        "name": "subtotal",
+                        "label": "Subtotal",
+                        "order": 1,
+                        "visible": true,
+                        "datatype": "currency"
+                    },
+                    {
+                        "id": "fLd_dc0d92d651",
+                        "name": "total_price",
+                        "label": "Total Price",
+                        "order": 2,
+                        "visible": true,
+                        "datatype": "currency"
+                    },
+                    {
+                        "id": "fLd_a64a8a90c7",
+                        "name": "quantity",
+                        "label": "Quantity",
+                        "order": 3,
+                        "visible": true,
+                        "datatype": "number"
+                    },
+                    {
+                        "id": "fLd_0b05279693",
+                        "name": "list_price",
+                        "label": "List Price",
+                        "order": 4,
+                        "visible": false,
+                        "datatype": "currency"
+                    },
+                    {
+                        "id": "fLd_c9f0ee03f3",
+                        "name": "unit_price",
+                        "label": "Unit Price",
+                        "order": 5,
+                        "visible": false,
+                        "datatype": "currency"
+                    },
+                    {
+                        "id": "fLd_a58179f80b",
+                        "name": "sort_order",
+                        "label": "Sort Order",
+                        "order": 6,
+                        "visible": false,
+                        "datatype": "number"
+                    },
+                    {
+                        "id": "fLd_72cb3fa797",
+                        "name": "service_date",
+                        "label": "Service Date",
+                        "order": 7,
+                        "visible": false,
+                        "datatype": "date"
+                    },
+                    {
+                        "id": "fLd_41a039606e",
+                        "name": "quote_id",
+                        "label": "Quote",
+                        "order": 8,
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_7bc91cf2a0",
+                        "name": "product_id",
+                        "label": "Product",
+                        "order": 9,
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_68b142ccd4",
+                        "name": "owner_id",
+                        "label": "Owner",
+                        "order": 10,
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_8b4dfbbd01",
+                        "name": "opportunity_lineitem_id",
+                        "label": "Opportunity Line Item Id",
+                        "order": 11,
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_5eedefe053",
+                        "name": "line_number",
+                        "label": "Line Number",
+                        "order": 12,
+                        "visible": false,
+                        "datatype": "number"
+                    },
+                    {
+                        "id": "fLd_5d4e25a1a2",
+                        "name": "last_modified_date",
+                        "label": "Last Modified Date",
+                        "order": 13,
+                        "visible": false,
+                        "datatype": "datetime"
+                    },
+                    {
+                        "id": "fLd_55688d063d",
+                        "name": "last_modified_by_id",
+                        "label": "Last Modified By",
+                        "order": 14,
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_158e43f599",
+                        "name": "discount",
+                        "label": "Discount",
+                        "order": 15,
+                        "visible": false,
+                        "datatype": "percent"
+                    },
+                    {
+                        "id": "fLd_292b7ed4a5",
+                        "name": "description",
+                        "label": "Description",
+                        "order": 16,
+                        "visible": false,
+                        "datatype": "textarea"
+                    },
+                    {
+                        "id": "fLd_2ee7ba2628",
+                        "name": "created_date",
+                        "label": "Created Date",
+                        "order": 17,
+                        "visible": false,
+                        "datatype": "datetime"
+                    },
+                    {
+                        "id": "fLd_f504b79455",
+                        "name": "created_by_id",
+                        "label": "Created By",
+                        "order": 18,
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    }
+                ],
+                "object": {
+                    "id": "obJ_c3de7d667e384b",
+                    "name": "quote_line_item",
+                    "label": "Quote Line Item",
+                    "icon": "QuoteDownCircleFreeIcons",
+                    "icon_color": "#2568ef"
+                },
+                "is_added": false,
+                "related_field": {
+                    "id": "fLd_41a039606e",
+                    "name": "quote_id",
+                    "label": "Quote",
+                    "datatype": null
+                }
+            }
+        ]
+    },
+    "opportunity": {
+        "id": "GEN_527d6376c",
+        "object_name": "opportunity",
+        "name": "new_layout",
+        "label": "New Layout",
+        "sections": [
+            {
+                "id": "section_1",
+                "title": "Basic Information",
+                "fields": [
+                    "name",
+                    "account_name_id",
+                    "type",
+                    "lead_source",
+                    "type_of_sales",
+                    "close_date",
+                    "next_step",
+                    "stages",
+                    "probabilty"
+                ]
+            },
+            {
+                "id": "section_2",
+                "title": "System Information",
+                "fields": [
+                    "owner_id",
+                    "created_date",
+                    "created_by_id",
+                    "last_modified_by_id"
+                ]
+            }
+        ],
+        "related_lists": [
+            {
+                "fields": [],
+                "object": {
+                    "id": "file_id",
+                    "name": "file",
+                    "label": "Files"
+                },
+                "is_added": false,
+                "related_field": {
+                    "id": "file_record_id",
+                    "name": "record_id",
+                    "label": "File",
+                    "datatype": "file"
+                }
+            },
+            {
+                "fields": [
+                    {
+                        "id": "fLd_2b601657a7",
+                        "name": "total_discount",
+                        "label": "Total Discount",
+                        "visible": false,
+                        "datatype": "currency"
+                    },
+                    {
+                        "id": "fLd_63d3c972bd",
+                        "name": "payment_terms",
+                        "label": "Payment Terms",
+                        "visible": false,
+                        "datatype": "picklist"
+                    },
+                    {
+                        "id": "fLd_bb90998a99",
+                        "name": "is_syncing",
+                        "label": "Is Syncing",
+                        "visible": false,
+                        "datatype": "checkbox"
+                    },
+                    {
+                        "id": "fLd_8073b72dc2",
+                        "name": "quote_number",
+                        "label": "Quote Number",
+                        "visible": false,
+                        "datatype": "auto_number"
+                    },
+                    {
+                        "id": "fLd_cbcd6abf3c",
+                        "name": "tax",
+                        "label": "Tax",
+                        "visible": false,
+                        "datatype": "currency"
+                    },
+                    {
+                        "id": "fLd_e2cbcd09a9",
+                        "name": "sub_total",
+                        "label": "Sub Total",
+                        "visible": false,
+                        "datatype": "currency"
+                    },
+                    {
+                        "id": "fLd_46af679c79",
+                        "name": "status",
+                        "label": "Status",
+                        "visible": false,
+                        "datatype": "picklist"
+                    },
+                    {
+                        "id": "fLd_1b9c3a5e72",
+                        "name": "shipping_street",
+                        "label": "Shipping Street",
+                        "visible": false,
+                        "datatype": "textarea"
+                    },
+                    {
+                        "id": "fLd_c2b1e40976",
+                        "name": "shipping_state",
+                        "label": "Shipping State",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_8080858385",
+                        "name": "shipping_postal_code",
+                        "label": "Shipping Postal Code",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_d3d72754d1",
+                        "name": "shipping_name",
+                        "label": "Shipping Name",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_cae6830aa8",
+                        "name": "shipping_longitude",
+                        "label": "Shipping Longitude",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_7f6dd6a8af",
+                        "name": "shipping_latitude",
+                        "label": "Shipping Latitude",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_ac6626a74c",
+                        "name": "shipping_handling",
+                        "label": "Shipping Handling",
+                        "visible": false,
+                        "datatype": "currency"
+                    },
+                    {
+                        "id": "fLd_977ea9abdf",
+                        "name": "shipping_geocode_accuracy",
+                        "label": "Shipping Geocode Accuracy",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_4c0644a513",
+                        "name": "shipping_country",
+                        "label": "Shipping Country",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_c59dcd8990",
+                        "name": "shipping_city",
+                        "label": "Shipping City",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_8935bf5e84",
+                        "name": "quote_to_street",
+                        "label": "Quote To Street",
+                        "visible": false,
+                        "datatype": "textarea"
+                    },
+                    {
+                        "id": "fLd_9e1fc59e31",
+                        "name": "quote_to_state",
+                        "label": "Quote To State",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_fd6a670307",
+                        "name": "quote_to_postal_code",
+                        "label": "Quote To Postal Code",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_ec36f79ada",
+                        "name": "quote_to_name",
+                        "label": "Quote To Name",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_851a9db840",
+                        "name": "quote_to_longitude",
+                        "label": "Quote To Longitude",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_cd60a744da",
+                        "name": "quote_to_latitude",
+                        "label": "Quote To Latitude",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_7c29aa821e",
+                        "name": "quote_to_geocode_accuracy",
+                        "label": "Quote To Geocode Accuracy",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_1717c7154a",
+                        "name": "quote_to_country",
+                        "label": "Quote To Country",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_d5d0feb197",
+                        "name": "quote_to_city",
+                        "label": "Quote To City",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_3847d6539d",
+                        "name": "quantity",
+                        "label": "Quantity",
+                        "visible": false,
+                        "datatype": "number"
+                    },
+                    {
+                        "id": "fLd_f773f44744",
+                        "name": "product_id",
+                        "label": "Product",
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_55061a6620",
+                        "name": "phone",
+                        "label": "Phone",
+                        "visible": false,
+                        "datatype": "phone"
+                    },
+                    {
+                        "id": "fLd_6055979a6a",
+                        "name": "owner_id",
+                        "label": "Owner",
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_af95fb4e06",
+                        "name": "opportunity_id",
+                        "label": "Opportunity Name",
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_d83082c9c0",
+                        "name": "name",
+                        "label": "Quote Name",
+                        "visible": true,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_3fb68e8d03",
+                        "name": "list_price",
+                        "label": "List Price",
+                        "visible": false,
+                        "datatype": "currency"
+                    },
+                    {
+                        "id": "fLd_cded84111a",
+                        "name": "last_modified_date",
+                        "label": "Last Modified Date",
+                        "visible": false,
+                        "datatype": "datetime"
+                    },
+                    {
+                        "id": "fLd_1fbf3d5fe1",
+                        "name": "last_modified_by_id",
+                        "label": "Last Modified By",
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_be08eea6d8",
+                        "name": "grand_total",
+                        "label": "Grand Total",
+                        "visible": false,
+                        "datatype": "currency"
+                    },
+                    {
+                        "id": "fLd_5e72185bd6",
+                        "name": "fax",
+                        "label": "Fax",
+                        "visible": false,
+                        "datatype": "phone"
+                    },
+                    {
+                        "id": "fLd_cbc1e1cac8",
+                        "name": "expiration_date",
+                        "label": "Expiration Date",
+                        "visible": false,
+                        "datatype": "date"
+                    },
+                    {
+                        "id": "fLd_689eb58c10",
+                        "name": "email",
+                        "label": "Email",
+                        "visible": false,
+                        "datatype": "email"
+                    },
+                    {
+                        "id": "fLd_8295a8cea2",
+                        "name": "discount",
+                        "label": "Discount",
+                        "visible": false,
+                        "datatype": "percent"
+                    },
+                    {
+                        "id": "fLd_81686c567c",
+                        "name": "description",
+                        "label": "Description",
+                        "visible": false,
+                        "datatype": "textarea"
+                    },
+                    {
+                        "id": "fLd_b67d11a978",
+                        "name": "created_date",
+                        "label": "Created Date",
+                        "visible": false,
+                        "datatype": "datetime"
+                    },
+                    {
+                        "id": "fLd_2cfa92f228",
+                        "name": "created_by_id",
+                        "label": "Created By",
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_56728e4576",
+                        "name": "contact_id",
+                        "label": "Contact",
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_09e1a883a0",
+                        "name": "billing_street",
+                        "label": "Billing Street",
+                        "visible": false,
+                        "datatype": "textarea"
+                    },
+                    {
+                        "id": "fLd_5ed6ab5304",
+                        "name": "billing_state",
+                        "label": "Billing State",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_576c7bfc38",
+                        "name": "billing_postal_code",
+                        "label": "Billing Postal Code",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_396bfd6ab5",
+                        "name": "billing_name",
+                        "label": "Billing Name",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_e530db3cb6",
+                        "name": "billing_longitude",
+                        "label": "Billing Longitude",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_61ab47464e",
+                        "name": "billing_latitude",
+                        "label": "Billing Latitude",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_3343818761",
+                        "name": "billing_geocode_accuracy",
+                        "label": "Billing Geocode Accuracy",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_25c70f4e34",
+                        "name": "billing_country",
+                        "label": "Billing Country",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_65061c59e6",
+                        "name": "billing_city",
+                        "label": "Billing City",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_d55caa0973",
+                        "name": "additional_street",
+                        "label": "Additional Street",
+                        "visible": false,
+                        "datatype": "textarea"
+                    },
+                    {
+                        "id": "fLd_1db802d34b",
+                        "name": "additional_state",
+                        "label": "Additional State",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_0ec4223b0f",
+                        "name": "additional_postal_code",
+                        "label": "Additional Postal Code",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_21e50ddf42",
+                        "name": "additional_name",
+                        "label": "Additional Name",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_af4e399a63",
+                        "name": "additional_longitude",
+                        "label": "Additional Longitude",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_b76d7df7a7",
+                        "name": "additional_latitude",
+                        "label": "Additional Latitude",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_4f6a45207b",
+                        "name": "additional_geocode_accuracy",
+                        "label": "Additional Geocode Accuracy",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_532ad8a59a",
+                        "name": "additional_country",
+                        "label": "Additional Country",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_6a43c6cd35",
+                        "name": "additional_city",
+                        "label": "Additional City",
+                        "visible": false,
+                        "datatype": "text"
+                    }
+                ],
+                "object": {
+                    "id": "obJ_78758a081ea041",
+                    "name": "quote",
+                    "label": "Quote"
+                },
+                "is_added": false,
+                "related_field": {
+                    "id": "fLd_af95fb4e06",
+                    "name": "opportunity_id",
+                    "label": "Opportunity Name",
+                    "datatype": null
+                }
+            },
+            {
+                "fields": [
+                    {
+                        "id": "fLd_c36bb4d2c9",
+                        "name": "unit_price",
+                        "label": "Unit Price",
+                        "visible": false,
+                        "datatype": "currency"
+                    },
+                    {
+                        "id": "fLd_c4c167f821",
+                        "name": "total_price",
+                        "label": "Total Price",
+                        "visible": false,
+                        "datatype": "currency"
+                    },
+                    {
+                        "id": "fLd_87de59613e",
+                        "name": "system_modstamp",
+                        "label": "System Modstamp",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_2a7b59dc1e",
+                        "name": "sort_order",
+                        "label": "Sort Order",
+                        "visible": false,
+                        "datatype": "number"
+                    },
+                    {
+                        "id": "fLd_c26b6e3d37",
+                        "name": "service_date",
+                        "label": "Service Date",
+                        "visible": false,
+                        "datatype": "date"
+                    },
+                    {
+                        "id": "fLd_7f55609b6f",
+                        "name": "quote_line_item_id",
+                        "label": "Quote Line Item Id",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_4568d8152d",
+                        "name": "quantity",
+                        "label": "Quantity",
+                        "visible": false,
+                        "datatype": "currency"
+                    },
+                    {
+                        "id": "fLd_5263f6dbf8",
+                        "name": "pricebook_entry_id",
+                        "label": "Pricebook Entry Id",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_45e78e2d3a",
+                        "name": "opportunity_id",
+                        "label": "Opportunity Id",
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_d2d3130e82",
+                        "name": "name",
+                        "label": "Name",
+                        "visible": true,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_447681f2ae",
+                        "name": "last_modified_date",
+                        "label": "Last Modified Date",
+                        "visible": false,
+                        "datatype": "datetime"
+                    },
+                    {
+                        "id": "fLd_686e44d065",
+                        "name": "last_modified_by_id",
+                        "label": "Last Modified By",
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_1328383924",
+                        "name": "discount",
+                        "label": "Discount",
+                        "visible": false,
+                        "datatype": "currency"
+                    },
+                    {
+                        "id": "fLd_10bedc3beb",
+                        "name": "description",
+                        "label": "Description",
+                        "visible": false,
+                        "datatype": "textarea"
+                    },
+                    {
+                        "id": "fLd_7c3b091dac",
+                        "name": "created_date",
+                        "label": "Created Date",
+                        "visible": false,
+                        "datatype": "datetime"
+                    },
+                    {
+                        "id": "fLd_26ccb3c827",
+                        "name": "created_by_id",
+                        "label": "Created By",
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    }
+                ],
+                "object": {
+                    "id": "obJ_7cb0fdfa7de04e",
+                    "name": "opportunity_lineitem",
+                    "label": "Opportunity Line Item"
+                },
+                "is_added": false,
+                "related_field": {
+                    "id": "fLd_45e78e2d3a",
+                    "name": "opportunity_id",
+                    "label": "Opportunity Id",
+                    "datatype": null
+                }
+            }
+        ]
+    },
+    "contact": {
+        "id": "GEN_b6fd2d9e5",
+        "object_name": "contact",
+        "name": "new_layout",
+        "label": "New Layout",
+        "sections": [
+            {
+                "id": "section_1",
+                "title": "Basic Information",
+                "fields": [
+                    "salutation",
+                    "name",
+                    "account_id",
+                    "department",
+                    "birthdate",
+                    "reports_to_id",
+                    "lead_source"
+                ]
+            },
+            {
+                "id": "section_2",
+                "title": "Contact Information",
+                "fields": [
+                    "contact_number",
+                    "email"
+                ]
+            },
+            {
+                "id": "section_3",
+                "title": "Address Information",
+                "fields": [
+                    "mailing_street",
+                    "mailing_city",
+                    "mailing_state",
+                    "mailing_country",
+                    "mailing_postal_code"
+                ]
+            },
+            {
+                "id": "section_4",
+                "title": "System Information",
+                "fields": [
+                    "owner_id",
+                    "created_date",
+                    "created_by_id",
+                    "last_modified_by_id"
+                ]
+            }
+        ],
+        "related_lists": [
+            {
+                "fields": [],
+                "object": {
+                    "id": "file_id",
+                    "name": "file",
+                    "label": "Files"
+                },
+                "is_added": false,
+                "related_field": {
+                    "id": "file_record_id",
+                    "name": "record_id",
+                    "label": "File",
+                    "datatype": "file"
+                }
+            },
+            {
+                "fields": [
+                    {
+                        "name": "name",
+                        "label": "Event ID",
+                        "visible": true
+                    },
+                    {
+                        "name": "subject",
+                        "label": "Subject",
+                        "visible": true
+                    },
+                    {
+                        "name": "start",
+                        "label": "Start",
+                        "visible": true
+                    },
+                    {
+                        "name": "end",
+                        "label": "End",
+                        "visible": true
+                    }
+                ],
+                "object": {
+                    "name": "event",
+                    "label": "Events"
+                },
+                "related_field": {
+                    "name": "contacts_id"
+                }
+            }
+        ]
+    },
+    "leads": {
+        "id": "GEN_b8b03062a",
+        "object_name": "leads",
+        "name": "new_layout",
+        "label": "New Layout",
+        "sections": [
+            {
+                "id": "section_1",
+                "title": "Basic Information",
+                "fields": [
+                    "salutation",
+                    "name",
+                    "lead_source",
+                    "partner_account_id",
+                    "status",
+                    "company",
+                    "description"
+                ]
+            },
+            {
+                "id": "section_2",
+                "title": "Contact Information",
+                "fields": [
+                    "contact_id",
+                    "email",
+                    "phone"
+                ]
+            },
+            {
+                "id": "section_3",
+                "title": "Address Information",
+                "fields": [
+                    "address_line",
+                    "city",
+                    "state",
+                    "pincode",
+                    "country"
+                ]
+            },
+            {
+                "id": "section_4",
+                "title": "System Information",
+                "fields": [
+                    "owner_id",
+                    "created_date",
+                    "created_by_id",
+                    "last_modified_date"
+                ]
+            }
+        ],
+        "related_lists": [
+            {
+                "fields": [],
+                "object": {
+                    "id": "file_id",
+                    "name": "file",
+                    "label": "Files"
+                },
+                "is_added": false,
+                "related_field": {
+                    "id": "file_record_id",
+                    "name": "record_id",
+                    "label": "File",
+                    "datatype": "file"
+                }
+            }
+        ]
+    },
+    "accounts": {
+        "id": "GEN_3adef090b",
+        "object_name": "accounts",
+        "name": "new_layout",
+        "label": "New Layout",
+        "sections": [
+            {
+                "id": "section_1",
+                "title": "Basic Information",
+                "fields": [
+                    "name",
+                    "parent_id",
+                    "account_number",
+                    "type",
+                    "industry",
+                    "number_of_employees",
+                    "rating",
+                    "ownership",
+                    "website",
+                    "description"
+                ]
+            },
+            {
+                "id": "section_2",
+                "title": "Contact Information",
+                "fields": [
+                    "phone",
+                    "email"
+                ]
+            },
+            {
+                "id": "section_3",
+                "title": "Address Information",
+                "fields": [
+                    "billing_street",
+                    "shipping_street",
+                    "billing_home_apartment_no",
+                    "shipping_home_apartment_no",
+                    "billing_city",
+                    "shipping_city",
+                    "billing_postal_code",
+                    "shipping_postal_code",
+                    "billing_state",
+                    "shipping_state",
+                    "billing_country",
+                    "shipping_country"
+                ]
+            },
+            {
+                "id": "section_4",
+                "title": "System Information",
+                "fields": [
+                    "owner_id",
+                    "created_date",
+                    "created_by_id",
+                    "last_modified_by_id"
+                ]
+            }
+        ],
+        "related_lists": [
+            {
+                "fields": [],
+                "object": {
+                    "id": "file_id",
+                    "name": "file",
+                    "label": "Files"
+                },
+                "is_added": false,
+                "related_field": {
+                    "id": "file_record_id",
+                    "name": "record_id",
+                    "label": "File",
+                    "datatype": "file"
+                }
+            },
+            {
+                "fields": [
+                    {
+                        "name": "name",
+                        "label": "Event ID",
+                        "visible": true
+                    },
+                    {
+                        "name": "subject",
+                        "label": "Subject",
+                        "visible": true
+                    },
+                    {
+                        "name": "start",
+                        "label": "Start",
+                        "visible": true
+                    },
+                    {
+                        "name": "end",
+                        "label": "End",
+                        "visible": true
+                    }
+                ],
+                "object": {
+                    "name": "event",
+                    "label": "Events"
+                },
+                "related_field": {
+                    "name": "accounts_id"
+                }
+            },
+            {
+                "fields": [
+                    {
+                        "id": "fLd_8d4d8a0485",
+                        "name": "type_of_sales",
+                        "label": "Type of Sales",
+                        "visible": false,
+                        "datatype": "picklist"
+                    },
+                    {
+                        "id": "fLd_d22afd83dc",
+                        "name": "type",
+                        "label": "Type",
+                        "visible": false,
+                        "datatype": "picklist"
+                    },
+                    {
+                        "id": "fLd_92b486b535",
+                        "name": "stages",
+                        "label": "Stages",
+                        "visible": false,
+                        "datatype": "picklist"
+                    },
+                    {
+                        "id": "fLd_3b83591dbf",
+                        "name": "special_instructions",
+                        "label": "Special Instructions",
+                        "visible": false,
+                        "datatype": "textarea"
+                    },
+                    {
+                        "id": "fLd_cbb26b1a54",
+                        "name": "project_start_date",
+                        "label": "Project Start Date",
+                        "visible": false,
+                        "datatype": "date"
+                    },
+                    {
+                        "id": "fLd_4354200f53",
+                        "name": "probability",
+                        "label": "Probability",
+                        "visible": false,
+                        "datatype": "percent"
+                    },
+                    {
+                        "id": "fLd_8b15eaa7c2",
+                        "name": "campaign_id",
+                        "label": "Primary Campaign Source",
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_c0267ad8d8",
+                        "name": "owner_id",
+                        "label": "Owner",
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_8f219adda6",
+                        "name": "number_of_revisions",
+                        "label": "Number of Revisions",
+                        "visible": false,
+                        "datatype": "number"
+                    },
+                    {
+                        "id": "fLd_dac28a9f62",
+                        "name": "next_step",
+                        "label": "Next Step",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_302392ca44",
+                        "name": "name",
+                        "label": "Opportunity Name",
+                        "visible": true,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_a76b7ee1ce",
+                        "name": "lead_source",
+                        "label": "Lead Source",
+                        "visible": false,
+                        "datatype": "picklist"
+                    },
+                    {
+                        "id": "fLd_ca7c1ab908",
+                        "name": "last_quote_value",
+                        "label": "Last Quote Value",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_5b73e047c5",
+                        "name": "last_modified_date",
+                        "label": "Last Modified Date",
+                        "visible": false,
+                        "datatype": "datetime"
+                    },
+                    {
+                        "id": "fLd_93935363e2",
+                        "name": "last_modified_by_id",
+                        "label": "Last Modified By",
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_6f503fd180",
+                        "name": "final_approved_value",
+                        "label": "Final Approved Value",
+                        "visible": false,
+                        "datatype": "number"
+                    },
+                    {
+                        "id": "fLd_8788b94773",
+                        "name": "discount_percentage",
+                        "label": "Discount Percentage",
+                        "visible": false,
+                        "datatype": "percent"
+                    },
+                    {
+                        "id": "fLd_235c7785fb",
+                        "name": "description",
+                        "label": "Description",
+                        "visible": false,
+                        "datatype": "textarealong"
+                    },
+                    {
+                        "id": "fLd_4a35b7d0b4",
+                        "name": "created_date",
+                        "label": "Created Date",
+                        "visible": false,
+                        "datatype": "datetime"
+                    },
+                    {
+                        "id": "fLd_8193afe364",
+                        "name": "created_by_id",
+                        "label": "Created By",
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_53819aa7a6",
+                        "name": "contact_id",
+                        "label": "Contact",
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_a11dab8daf",
+                        "name": "close_date",
+                        "label": "Close Date",
+                        "visible": false,
+                        "datatype": "date"
+                    },
+                    {
+                        "id": "fLd_a0dc7d9f55",
+                        "name": "ask_for_customer",
+                        "label": "Ask For Customer",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_e2ee43171a",
+                        "name": "amount",
+                        "label": "Amount",
+                        "visible": false,
+                        "datatype": "currency"
+                    },
+                    {
+                        "id": "fLd_c56f690130",
+                        "name": "account_id",
+                        "label": "Account Name",
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    }
+                ],
+                "object": {
+                    "id": "obJ_4e666d30453045",
+                    "name": "opportunity",
+                    "label": "Opportunity"
+                },
+                "is_added": false,
+                "related_field": {
+                    "id": "fLd_c56f690130",
+                    "name": "account_id",
+                    "label": "Account Name",
+                    "datatype": null
+                }
+            },
+            {
+                "fields": [
+                    {
+                        "id": "fLd_2fb395d12e",
+                        "name": "weight",
+                        "label": "Weight",
+                        "visible": false,
+                        "datatype": "number"
+                    },
+                    {
+                        "id": "fLd_4302eb0e91",
+                        "name": "unit_price",
+                        "label": "Unit Price",
+                        "visible": false,
+                        "datatype": "currency"
+                    },
+                    {
+                        "id": "fLd_6c7b69e078",
+                        "name": "unit",
+                        "label": "Unit",
+                        "visible": false,
+                        "datatype": "number"
+                    },
+                    {
+                        "id": "fLd_6050e429f4",
+                        "name": "total_amount_without_gst",
+                        "label": "Total Amount Without Gst",
+                        "visible": false,
+                        "datatype": "currency"
+                    },
+                    {
+                        "id": "fLd_ce3cf1d38c",
+                        "name": "total_amount",
+                        "label": "Total Amount",
+                        "visible": false,
+                        "datatype": "currency"
+                    },
+                    {
+                        "id": "fLd_d507753269",
+                        "name": "tax_percent",
+                        "label": "Tax Percent",
+                        "visible": false,
+                        "datatype": "number"
+                    },
+                    {
+                        "id": "fLd_e20b1486f0",
+                        "name": "tax_amount",
+                        "label": "Tax Amount",
+                        "visible": false,
+                        "datatype": "currency"
+                    },
+                    {
+                        "id": "fLd_c05fab44e6",
+                        "name": "store_id",
+                        "label": "Account",
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_61284affff",
+                        "name": "size",
+                        "label": "Size",
+                        "visible": false,
+                        "datatype": "number"
+                    },
+                    {
+                        "id": "fLd_896799fdc1",
+                        "name": "quantity",
+                        "label": "Quantity",
+                        "visible": false,
+                        "datatype": "number"
+                    },
+                    {
+                        "id": "fLd_951fcaf2a1",
+                        "name": "product_id",
+                        "label": "Product",
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_d48c39855c",
+                        "name": "name",
+                        "label": "Invoice Item Number",
+                        "visible": true,
+                        "datatype": "auto_number"
+                    },
+                    {
+                        "id": "fLd_255fc27c88",
+                        "name": "last_modified_date",
+                        "label": "Last Modified Date",
+                        "visible": false,
+                        "datatype": "datetime"
+                    },
+                    {
+                        "id": "fLd_cf8c9c9443",
+                        "name": "last_modified_by_id",
+                        "label": "Last Modified By",
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_c9700f89ae",
+                        "name": "invoice_id",
+                        "label": "Invoice",
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_ee1cfba3c9",
+                        "name": "grant_total",
+                        "label": "Grant Total",
+                        "visible": false,
+                        "datatype": "currency"
+                    },
+                    {
+                        "id": "fLd_3f15465dc2",
+                        "name": "discount_amount",
+                        "label": "Discount Amount",
+                        "visible": false,
+                        "datatype": "currency"
+                    },
+                    {
+                        "id": "fLd_38b963b73b",
+                        "name": "delivery_status",
+                        "label": "Delivery Status",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_d27b29653c",
+                        "name": "created_date",
+                        "label": "Created Date",
+                        "visible": false,
+                        "datatype": "datetime"
+                    },
+                    {
+                        "id": "fLd_27b796d7e8",
+                        "name": "created_by_id",
+                        "label": "Created By",
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    }
+                ],
+                "object": {
+                    "id": "obJ_6f51b1ecf4c546",
+                    "name": "invoice_item",
+                    "label": "Invoice Item"
+                },
+                "is_added": false,
+                "related_field": {
+                    "id": "fLd_c05fab44e6",
+                    "name": "store_id",
+                    "label": "Account",
+                    "datatype": null
+                }
+            },
+            {
+                "fields": [
+                    {
+                        "id": "fLd_75ee68939a",
+                        "name": "salutation",
+                        "label": "Salutation",
+                        "visible": false,
+                        "datatype": "picklist"
+                    },
+                    {
+                        "id": "fLd_732c783b7b",
+                        "name": "website",
+                        "label": "Website",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_95ced0a5a9",
+                        "name": "converted_date",
+                        "label": "Converted Date",
+                        "visible": false,
+                        "datatype": "datetime"
+                    },
+                    {
+                        "id": "fLd_9f159422e8",
+                        "name": "is_converted",
+                        "label": "Is Converted",
+                        "visible": false,
+                        "datatype": "checkbox"
+                    },
+                    {
+                        "id": "fLd_f16b5d9d26",
+                        "name": "street",
+                        "label": "Street",
+                        "visible": false,
+                        "datatype": "textarea"
+                    },
+                    {
+                        "id": "fLd_8023a45919",
+                        "name": "status",
+                        "label": "Lead Status",
+                        "visible": false,
+                        "datatype": "picklist"
+                    },
+                    {
+                        "id": "fLd_907b970e78",
+                        "name": "state",
+                        "label": "State",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_1b46a97218",
+                        "name": "stages",
+                        "label": "Stages",
+                        "visible": false,
+                        "datatype": "picklist"
+                    },
+                    {
+                        "id": "fLd_ad7ebc1cb4",
+                        "name": "region",
+                        "label": "Region",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_ec45799d33",
+                        "name": "rating",
+                        "label": "Rating",
+                        "visible": false,
+                        "datatype": "picklist"
+                    },
+                    {
+                        "id": "fLd_b3e8b96473",
+                        "name": "product_enquired",
+                        "label": "Product Enquired",
+                        "visible": false,
+                        "datatype": "picklist"
+                    },
+                    {
+                        "id": "fLd_a125ef2e77",
+                        "name": "pincode",
+                        "label": "Pincode",
+                        "visible": false,
+                        "datatype": "number"
+                    },
+                    {
+                        "id": "fLd_ebe8226507",
+                        "name": "phone",
+                        "label": "Phone",
+                        "visible": false,
+                        "datatype": "phone"
+                    },
+                    {
+                        "id": "fLd_be8d207213",
+                        "name": "company",
+                        "label": "Company",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_2882955452",
+                        "name": "pan",
+                        "label": "PAN",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_170702c523",
+                        "name": "owner_id",
+                        "label": "Owner",
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_77a149ba14",
+                        "name": "number_of_employees",
+                        "label": "Number Of Employees",
+                        "visible": false,
+                        "datatype": "number"
+                    },
+                    {
+                        "id": "fLd_6c2cd81180",
+                        "name": "name",
+                        "label": "Lead Name",
+                        "visible": true,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_9925a58c8f",
+                        "name": "master_record_id",
+                        "label": "Master Record",
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_2e13f86aaf",
+                        "name": "lead_source",
+                        "label": "Lead Source",
+                        "visible": false,
+                        "datatype": "picklist"
+                    },
+                    {
+                        "id": "fLd_48b6f76dc6",
+                        "name": "lead_country",
+                        "label": "Lead Country",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_8fc0801eb4",
+                        "name": "lead_classification",
+                        "label": "Lead Classification",
+                        "visible": false,
+                        "datatype": "picklist"
+                    },
+                    {
+                        "id": "fLd_fa5e4238af",
+                        "name": "industry",
+                        "label": "Industry",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_70342163e4",
+                        "name": "last_modified_date",
+                        "label": "Last Modified Date",
+                        "visible": false,
+                        "datatype": "datetime"
+                    },
+                    {
+                        "id": "fLd_0b736c25c9",
+                        "name": "last_modified_by_id",
+                        "label": "Last Modified By",
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_d330e4f766",
+                        "name": "gst_number",
+                        "label": "GST Number",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_8e63c7a53c",
+                        "name": "email",
+                        "label": "Email",
+                        "visible": false,
+                        "datatype": "email"
+                    },
+                    {
+                        "id": "fLd_ec49e75789",
+                        "name": "district",
+                        "label": "District",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_805b7d4e29",
+                        "name": "description",
+                        "label": "Description",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_a99bff554a",
+                        "name": "created_date",
+                        "label": "Created Date",
+                        "visible": false,
+                        "datatype": "datetime"
+                    },
+                    {
+                        "id": "fLd_fb436f05c3",
+                        "name": "created_by_id",
+                        "label": "Created By",
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_1067fe9a28",
+                        "name": "country",
+                        "label": "Country",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_aeecbc1227",
+                        "name": "accounts_id",
+                        "label": "Converted Account",
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_d24f2423fb",
+                        "name": "contact_person_name",
+                        "label": "Contact Person Name",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_1231dc39ae",
+                        "name": "contact_number",
+                        "label": "Contact Number",
+                        "visible": false,
+                        "datatype": "phone"
+                    },
+                    {
+                        "id": "fLd_5dc4599a4b",
+                        "name": "city",
+                        "label": "City",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_8f4692b24e",
+                        "name": "area",
+                        "label": "Area",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_9a4351b5f0",
+                        "name": "annual_revenue",
+                        "label": "Annual Revenue",
+                        "visible": false,
+                        "datatype": "currency"
+                    },
+                    {
+                        "id": "fLd_9c5e6a6640",
+                        "name": "address_line",
+                        "label": "Address Line",
+                        "visible": false,
+                        "datatype": "text"
+                    }
+                ],
+                "object": {
+                    "id": "obJ_863146a8ab8f4a",
+                    "name": "leads",
+                    "label": "Lead"
+                },
+                "is_added": false,
+                "related_field": {
+                    "id": "fLd_aeecbc1227",
+                    "name": "accounts_id",
+                    "label": "Converted Account",
+                    "datatype": null
+                }
+            },
+            {
+                "fields": [
+                    {
+                        "id": "fLd_2fc367d31a",
+                        "name": "name",
+                        "label": "Last Name",
+                        "visible": true,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_2dcd6a51e5",
+                        "name": "first_name",
+                        "label": "First Name",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_0669c57b46",
+                        "name": "title",
+                        "label": "Title",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_14b3b43cb8",
+                        "name": "system_modstamp",
+                        "label": "System Modstamp",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_0c3730a88a",
+                        "name": "salutation",
+                        "label": "Salutation",
+                        "visible": false,
+                        "datatype": "picklist"
+                    },
+                    {
+                        "id": "fLd_5dd645dd8d",
+                        "name": "reports_to_id",
+                        "label": "Reports To",
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_dae3985e72",
+                        "name": "pronouns",
+                        "label": "Pronouns",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_a8827bdd25",
+                        "name": "phone",
+                        "label": "Phone",
+                        "visible": false,
+                        "datatype": "phone"
+                    },
+                    {
+                        "id": "fLd_455d6acb1d",
+                        "name": "owner_id",
+                        "label": "Contact Owner",
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_8fc146d9a2",
+                        "name": "other_street",
+                        "label": "Other Street",
+                        "visible": false,
+                        "datatype": "textarea"
+                    },
+                    {
+                        "id": "fLd_c353ba0f9d",
+                        "name": "other_state",
+                        "label": "Other State",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_694d884358",
+                        "name": "other_postal_code",
+                        "label": "Other Postal Code",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_6ff729893e",
+                        "name": "other_phone",
+                        "label": "Other Phone",
+                        "visible": false,
+                        "datatype": "phone"
+                    },
+                    {
+                        "id": "fLd_e7df0078d2",
+                        "name": "other_longitude",
+                        "label": "Other Longitude",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_9b747f83df",
+                        "name": "other_latitude",
+                        "label": "Other Latitude",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_4246916120",
+                        "name": "other_geocode_accuracy",
+                        "label": "Other Geocode Accuracy",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_10e2efd860",
+                        "name": "other_country",
+                        "label": "Other Country",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_84cec58067",
+                        "name": "other_city",
+                        "label": "Other City",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_a0a6e8c6d5",
+                        "name": "master_record_id",
+                        "label": "Master Record Id",
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_decf75565d",
+                        "name": "mailing_street",
+                        "label": "Mailing Street",
+                        "visible": false,
+                        "datatype": "text_area"
+                    },
+                    {
+                        "id": "fLd_7bdfbd25d9",
+                        "name": "mailing_state",
+                        "label": "Mailing State",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_2bd45e7474",
+                        "name": "mailing_postal_code",
+                        "label": "Mailing Postal Code",
+                        "visible": false,
+                        "datatype": "number"
+                    },
+                    {
+                        "id": "fLd_c0b642b029",
+                        "name": "mailing_longitude",
+                        "label": "Mailing Longitude",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_5a378852b1",
+                        "name": "mailing_latitude",
+                        "label": "Mailing Latitude",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_18863acb7b",
+                        "name": "mailing_geocode_accuracy",
+                        "label": "Mailing Geocode Accuracy",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_738e579533",
+                        "name": "mailing_country",
+                        "label": "Mailing Country",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_7a80912710",
+                        "name": "mailing_city",
+                        "label": "Mailing City",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_1c4d3f65cc",
+                        "name": "level",
+                        "label": "Level",
+                        "visible": false,
+                        "datatype": "picklist"
+                    },
+                    {
+                        "id": "fLd_1b4d9cacdf",
+                        "name": "lead_source",
+                        "label": "Lead Source",
+                        "visible": false,
+                        "datatype": "picklist"
+                    },
+                    {
+                        "id": "fLd_da44e60887",
+                        "name": "last_modified_date",
+                        "label": "Last Modified Date",
+                        "visible": false,
+                        "datatype": "datetime"
+                    },
+                    {
+                        "id": "fLd_ebb3906ea6",
+                        "name": "last_modified_by_id",
+                        "label": "Last Modified By",
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_f4a0365f53",
+                        "name": "last_cu_update_date",
+                        "label": "Last Cu Update Date",
+                        "visible": false,
+                        "datatype": "datetime"
+                    },
+                    {
+                        "id": "fLd_f97e253519",
+                        "name": "last_cu_request_date",
+                        "label": "Last Cu Request Date",
+                        "visible": false,
+                        "datatype": "datetime"
+                    },
+                    {
+                        "id": "fLd_2c7087fa92",
+                        "name": "last_activity_date",
+                        "label": "Last Activity Date",
+                        "visible": false,
+                        "datatype": "date"
+                    },
+                    {
+                        "id": "fLd_969001dd0c",
+                        "name": "home_phone",
+                        "label": "Home Phone",
+                        "visible": false,
+                        "datatype": "phone"
+                    },
+                    {
+                        "id": "fLd_8b4703e7d6",
+                        "name": "has_opted_out_of_fax",
+                        "label": "Has Opted Out Of Fax",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_0b2ea4568c",
+                        "name": "has_opted_out_of_email",
+                        "label": "Has Opted Out Of Email",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_6315038f16",
+                        "name": "gender_identity",
+                        "label": "Gender Identity",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_406fe5a8eb",
+                        "name": "fax",
+                        "label": "Fax",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_590faf2155",
+                        "name": "email_bounced_reason",
+                        "label": "Email Bounced Reason",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_dcf29976c9",
+                        "name": "email_bounced_date",
+                        "label": "Email Bounced Date",
+                        "visible": false,
+                        "datatype": "datetime"
+                    },
+                    {
+                        "id": "fLd_166095bd6f",
+                        "name": "email",
+                        "label": "Email",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_e884b9dfe7",
+                        "name": "do_not_call",
+                        "label": "Do Not Call",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_67d33b152d",
+                        "name": "description",
+                        "label": "Description",
+                        "visible": false,
+                        "datatype": "textarea"
+                    },
+                    {
+                        "id": "fLd_4ff9ea91ae",
+                        "name": "department",
+                        "label": "Department",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_17f4190c5e",
+                        "name": "created_date",
+                        "label": "Created Date",
+                        "visible": false,
+                        "datatype": "datetime"
+                    },
+                    {
+                        "id": "fLd_67a8485fab",
+                        "name": "created_by_id",
+                        "label": "Created By",
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_f50dc67ce9",
+                        "name": "contact_source",
+                        "label": "Contact Source",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_566082a651",
+                        "name": "contact_number",
+                        "label": "Contact Number",
+                        "visible": false,
+                        "datatype": "phone"
+                    },
+                    {
+                        "id": "fLd_c8f0767ee7",
+                        "name": "buyer_attributes",
+                        "label": "Buyer Attributes",
+                        "visible": false,
+                        "datatype": "textarea"
+                    },
+                    {
+                        "id": "fLd_612a0c0f59",
+                        "name": "birthdate",
+                        "label": "Birthdate",
+                        "visible": false,
+                        "datatype": "date"
+                    },
+                    {
+                        "id": "fLd_0cca468043",
+                        "name": "assistant_phone",
+                        "label": "Assistant Phone",
+                        "visible": false,
+                        "datatype": "phone"
+                    },
+                    {
+                        "id": "fLd_be73ad4805",
+                        "name": "assistant_name",
+                        "label": "Assistant Name",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_e276b961fb",
+                        "name": "account_id",
+                        "label": "Account",
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    }
+                ],
+                "object": {
+                    "id": "obJ_b3ca6f716d2b4c",
+                    "name": "contact",
+                    "label": "Contact"
+                },
+                "is_added": false,
+                "related_field": {
+                    "id": "fLd_e276b961fb",
+                    "name": "account_id",
+                    "label": "Account",
+                    "datatype": null
+                }
+            },
+            {
+                "fields": [
+                    {
+                        "id": "fLd_29e42248b2",
+                        "name": "work_order",
+                        "label": "Work Order",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_9a4c160aa0",
+                        "name": "visit_id",
+                        "label": "Visit",
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_4a25faf6f7",
+                        "name": "vehicle",
+                        "label": "Vehicle",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_33e3c66021",
+                        "name": "total_tax",
+                        "label": "Total Tax",
+                        "visible": false,
+                        "datatype": "currency"
+                    },
+                    {
+                        "id": "fLd_a7b7e4caae",
+                        "name": "total_quantity",
+                        "label": "Quantity",
+                        "visible": false,
+                        "datatype": "number"
+                    },
+                    {
+                        "id": "fLd_9cfc4e4449",
+                        "name": "total_amount",
+                        "label": "Total Amount",
+                        "visible": false,
+                        "datatype": "currency"
+                    },
+                    {
+                        "id": "fLd_82e601b5d5",
+                        "name": "store",
+                        "label": "Store",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_df7952f2dc",
+                        "name": "status",
+                        "label": "Status",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_415cef279a",
+                        "name": "promotional_offer",
+                        "label": "Promotional Offer",
+                        "visible": false,
+                        "datatype": "number"
+                    },
+                    {
+                        "id": "fLd_3d99ca2691",
+                        "name": "payment_status",
+                        "label": "Payment Status",
+                        "visible": false,
+                        "datatype": "picklist"
+                    },
+                    {
+                        "id": "fLd_37c5170c7c",
+                        "name": "owner_id",
+                        "label": "Owner Id",
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_e4c153a3e3",
+                        "name": "outstanding_amount",
+                        "label": "Outstanding Amount",
+                        "visible": false,
+                        "datatype": "currency"
+                    },
+                    {
+                        "id": "fLd_fb9cbf4509",
+                        "name": "last_modified_date",
+                        "label": "Last Modified Date",
+                        "visible": false,
+                        "datatype": "datetime"
+                    },
+                    {
+                        "id": "fLd_d5804d817a",
+                        "name": "last_modified_by_id",
+                        "label": "Last Modified By",
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_21fd857143",
+                        "name": "invoice_outstanding_amount",
+                        "label": "Invoice Outstanding Amount",
+                        "visible": false,
+                        "datatype": "currency"
+                    },
+                    {
+                        "id": "fLd_2e72cad533",
+                        "name": "name",
+                        "label": "Invoice No",
+                        "visible": true,
+                        "datatype": "auto_number"
+                    },
+                    {
+                        "id": "fLd_4a864291a7",
+                        "name": "invoice_date",
+                        "label": "Invoice Date",
+                        "visible": false,
+                        "datatype": "date"
+                    },
+                    {
+                        "id": "fLd_f597dec248",
+                        "name": "grand_total",
+                        "label": "Grand Total",
+                        "visible": false,
+                        "datatype": "currency"
+                    },
+                    {
+                        "id": "fLd_73d7e7d7d4",
+                        "name": "email",
+                        "label": "Email",
+                        "visible": false,
+                        "datatype": "email"
+                    },
+                    {
+                        "id": "fLd_d64f99fe2f",
+                        "name": "due_date",
+                        "label": "Due Date",
+                        "visible": false,
+                        "datatype": "date"
+                    },
+                    {
+                        "id": "fLd_f55b2a67c3",
+                        "name": "delivery_status",
+                        "label": "Delivery Status",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_26591128da",
+                        "name": "created_date",
+                        "label": "Created Date",
+                        "visible": false,
+                        "datatype": "datetime"
+                    },
+                    {
+                        "id": "fLd_0466e528d1",
+                        "name": "created_by_id",
+                        "label": "Created By",
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_0ab6979959",
+                        "name": "closed_date",
+                        "label": "Closed Date",
+                        "visible": false,
+                        "datatype": "datetime"
+                    },
+                    {
+                        "id": "fLd_5f8a676eb4",
+                        "name": "clockout_date",
+                        "label": "Clockout Date",
+                        "visible": false,
+                        "datatype": "datetime"
+                    },
+                    {
+                        "id": "fLd_e9975c87f4",
+                        "name": "clockout_address",
+                        "label": "Clockout Address",
+                        "visible": false,
+                        "datatype": "textarea"
+                    },
+                    {
+                        "id": "fLd_c05673405b",
+                        "name": "bill_to_contact",
+                        "label": "Bill To Contact",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_5fc713598a",
+                        "name": "batch",
+                        "label": "Batch",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_73c366a1c7",
+                        "name": "balance",
+                        "label": "Balance",
+                        "visible": false,
+                        "datatype": "currency"
+                    },
+                    {
+                        "id": "fLd_12c4f26a79",
+                        "name": "aging",
+                        "label": "Aging",
+                        "visible": false,
+                        "datatype": "number"
+                    },
+                    {
+                        "id": "fLd_8079b0ecf6",
+                        "name": "account_id",
+                        "label": "Account",
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    }
+                ],
+                "object": {
+                    "id": "obJ_018eee759ca148",
+                    "name": "invoice",
+                    "label": "Invoice"
+                },
+                "is_added": false,
+                "related_field": {
+                    "id": "fLd_8079b0ecf6",
+                    "name": "account_id",
+                    "label": "Account",
+                    "datatype": null
+                }
+            }
+        ]
+    },
+    "case": {
+        "id": "GEN_588428b4c",
+        "object_name": "case",
+        "name": "new_layout",
+        "label": "New Layout",
+        "sections": [
+            {
+                "id": "section_1",
+                "title": "Basic Information",
+                "fields": [
+                    "name",
+                    "email",
+                    "case_number",
+                    "status",
+                    "reason",
+                    "load_testing"
+                ]
+            },
+            {
+                "id": "section_2",
+                "title": "New Section",
+                "fields": [
+                    "owner_id",
+                    "created_date",
+                    "last_modified_date"
+                ]
+            }
+        ],
+        "related_lists": [
+            {
+                "fields": [],
+                "object": {
+                    "id": "file_id",
+                    "name": "file",
+                    "label": "Files"
+                },
+                "is_added": false,
+                "related_field": {
+                    "id": "file_record_id",
+                    "name": "record_id",
+                    "label": "File",
+                    "datatype": "file"
+                }
+            }
+        ]
+    },
+    "campaign_member": {
+        "id": "GEN_19a3ce04f",
+        "object_name": "campaign_member",
+        "name": "new_layout",
+        "label": "New Layout",
+        "sections": [
+            {
+                "id": "section_1",
+                "title": "Basic Information",
+                "fields": [
+                    "name",
+                    "campaign_status",
+                    "lead_id",
+                    "campaign_id",
+                    "contact_id"
+                ]
+            },
+            {
+                "id": "section_2",
+                "title": "New Section",
+                "fields": [
+                    "owner_id",
+                    "created_date",
+                    "last_modified_date"
+                ]
+            }
+        ],
+        "related_lists": [
+            {
+                "fields": [],
+                "object": {
+                    "id": "file_id",
+                    "name": "file",
+                    "label": "Files"
+                },
+                "is_added": false,
+                "related_field": {
+                    "id": "file_record_id",
+                    "name": "record_id",
+                    "label": "File",
+                    "datatype": "file"
+                }
+            }
+        ]
+    },
+    "target_logic": {
+        "id": "GEN_61dc43d53",
+        "object_name": "target_logic",
+        "name": "new_layout",
+        "label": "New Layout",
+        "sections": [
+            {
+                "id": "section_1",
+                "title": "Basic Information",
+                "fields": [
+                    "name",
+                    "target_plan_id",
+                    "weightage",
+                    "max_incentive",
+                    "target_type",
+                    "isactive"
+                ]
+            }
+        ]
+    },
+    "target_item": {
+        "id": "GEN_536f4db01",
+        "object_name": "target_item",
+        "name": "new_layout",
+        "label": "New Layout",
+        "sections": [
+            {
+                "id": "section_1",
+                "title": "New Section",
+                "fields": [
+                    "amount"
+                ]
+            },
+            {
+                "id": 1748510114662,
+                "title": "New Section",
+                "fields": [
+                    "created_date"
+                ]
+            },
+            {
+                "title": "Basic Information",
+                "fields": [
+                    "target_logic_id",
+                    "target_id",
+                    "total_target",
+                    "team_target",
+                    "self_target",
+                    "total_actual",
+                    "team_actual",
+                    "self_actual",
+                    "achieved_percentage",
+                    "weighted_achievement_percentage",
+                    "amount",
+                    "name",
+                    "period_id",
+                    "target_plan_id",
+                    "assigned_to",
+                    "deleted_date",
+                    "parent_id"
+                ]
+            }
+        ]
+    },
+    "product": {
+        "id": "GEN_544c2cd70",
+        "object_name": "product",
+        "name": "new_layout",
+        "label": "New Layout",
+        "sections": [
+            {
+                "id": "Basic Information",
+                "title": "New Section",
+                "fields": [
+                    "name",
+                    "product_code",
+                    "type",
+                    "description",
+                    "display_url",
+                    "quantity_unit_of_measure",
+                    "product_class"
+                ]
+            },
+            {
+                "id": "section_2",
+                "title": "Other Information",
+                "fields": [
+                    "salesforce_id",
+                    "tax_percentage",
+                    "selling_category",
+                    "kw",
+                    "model",
+                    "item_cost",
+                    "class",
+                    "hsn_code",
+                    "hsn_description",
+                    "product_cost",
+                    "is_active"
+                ]
+            },
+            {
+                "id": "section_3",
+                "title": "System Information",
+                "fields": [
+                    "owner_id",
+                    "created_by_id",
+                    "created_date",
+                    "last_modified_by_id",
+                    "last_modified_date"
+                ]
+            }
+        ],
+        "related_lists": [
+            {
+                "fields": [],
+                "object": {
+                    "id": "file_id",
+                    "name": "file",
+                    "label": "Files"
+                },
+                "is_added": false,
+                "related_field": {
+                    "id": "file_record_id",
+                    "name": "record_id",
+                    "label": "File",
+                    "datatype": "file"
+                }
+            },
+            {
+                "fields": [
+                    {
+                        "id": "fLd_2fb395d12e",
+                        "name": "weight",
+                        "label": "Weight",
+                        "visible": false,
+                        "datatype": "number"
+                    },
+                    {
+                        "id": "fLd_4302eb0e91",
+                        "name": "unit_price",
+                        "label": "Unit Price",
+                        "visible": true,
+                        "datatype": "currency"
+                    },
+                    {
+                        "id": "fLd_6c7b69e078",
+                        "name": "unit",
+                        "label": "Unit",
+                        "visible": false,
+                        "datatype": "number"
+                    },
+                    {
+                        "id": "fLd_6050e429f4",
+                        "name": "total_amount_without_gst",
+                        "label": "Total Amount Without Gst",
+                        "visible": false,
+                        "datatype": "currency"
+                    },
+                    {
+                        "id": "fLd_ce3cf1d38c",
+                        "name": "total_amount",
+                        "label": "Total Amount",
+                        "visible": true,
+                        "datatype": "currency"
+                    },
+                    {
+                        "id": "fLd_d507753269",
+                        "name": "tax_percent",
+                        "label": "Tax Percent",
+                        "visible": false,
+                        "datatype": "number"
+                    },
+                    {
+                        "id": "fLd_e20b1486f0",
+                        "name": "tax_amount",
+                        "label": "Tax Amount",
+                        "visible": false,
+                        "datatype": "currency"
+                    },
+                    {
+                        "id": "fLd_c05fab44e6",
+                        "name": "store_id",
+                        "label": "Account",
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_61284affff",
+                        "name": "size",
+                        "label": "Size",
+                        "visible": false,
+                        "datatype": "number"
+                    },
+                    {
+                        "id": "fLd_896799fdc1",
+                        "name": "quantity",
+                        "label": "Quantity",
+                        "visible": true,
+                        "datatype": "number"
+                    },
+                    {
+                        "id": "fLd_951fcaf2a1",
+                        "name": "product_id",
+                        "label": "Product",
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_d48c39855c",
+                        "name": "name",
+                        "label": "Invoice Item Number",
+                        "visible": true,
+                        "datatype": "auto_number"
+                    },
+                    {
+                        "id": "fLd_255fc27c88",
+                        "name": "last_modified_date",
+                        "label": "Last Modified Date",
+                        "visible": false,
+                        "datatype": "datetime"
+                    },
+                    {
+                        "id": "fLd_cf8c9c9443",
+                        "name": "last_modified_by_id",
+                        "label": "Last Modified By",
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_c9700f89ae",
+                        "name": "invoice_id",
+                        "label": "Invoice",
+                        "visible": true,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_ee1cfba3c9",
+                        "name": "grant_total",
+                        "label": "Grant Total",
+                        "visible": true,
+                        "datatype": "currency"
+                    },
+                    {
+                        "id": "fLd_3f15465dc2",
+                        "name": "discount_amount",
+                        "label": "Discount Amount",
+                        "visible": false,
+                        "datatype": "currency"
+                    },
+                    {
+                        "id": "fLd_38b963b73b",
+                        "name": "delivery_status",
+                        "label": "Delivery Status",
+                        "visible": false,
+                        "datatype": "text"
+                    },
+                    {
+                        "id": "fLd_d27b29653c",
+                        "name": "created_date",
+                        "label": "Created Date",
+                        "visible": false,
+                        "datatype": "datetime"
+                    },
+                    {
+                        "id": "fLd_27b796d7e8",
+                        "name": "created_by_id",
+                        "label": "Created By",
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    }
+                ],
+                "object": {
+                    "id": "obJ_6f51b1ecf4c546",
+                    "name": "invoice_item",
+                    "label": "Invoice Item"
+                },
+                "is_added": false,
+                "related_field": {
+                    "id": "fLd_951fcaf2a1",
+                    "name": "product_id",
+                    "label": "Product",
+                    "datatype": null
+                }
+            },
+            {
+                "fields": [
+                    {
+                        "id": "fLd_7559199d29",
+                        "name": "subtotal",
+                        "label": "Subtotal",
+                        "visible": true,
+                        "datatype": "currency"
+                    },
+                    {
+                        "id": "fLd_00b0fda4a7",
+                        "name": "total_price",
+                        "label": "Total Price",
+                        "visible": true,
+                        "datatype": "currency"
+                    },
+                    {
+                        "id": "fLd_d381dddd8e",
+                        "name": "list_price",
+                        "label": "List Price",
+                        "visible": false,
+                        "datatype": "currency"
+                    },
+                    {
+                        "id": "fLd_997526fb3d",
+                        "name": "unit_price",
+                        "label": "Unit Price",
+                        "visible": true,
+                        "datatype": "currency"
+                    },
+                    {
+                        "id": "fLd_2cea910362",
+                        "name": "sort_order",
+                        "label": "Sort Order",
+                        "visible": false,
+                        "datatype": "number"
+                    },
+                    {
+                        "id": "fLd_96b6296260",
+                        "name": "service_date",
+                        "label": "Service Date",
+                        "visible": false,
+                        "datatype": "date"
+                    },
+                    {
+                        "id": "fLd_9c3782bacb",
+                        "name": "quote_id",
+                        "label": "Quote",
+                        "visible": true,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_5d5de3ae06",
+                        "name": "quantity",
+                        "label": "Quantity",
+                        "visible": true,
+                        "datatype": "number"
+                    },
+                    {
+                        "id": "fLd_a56d9f8ae6",
+                        "name": "product_id",
+                        "label": "Product",
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_feb0c8f1f3",
+                        "name": "owner_id",
+                        "label": "Owner",
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_d3b65e9ae1",
+                        "name": "opportunity_lineitem_id",
+                        "label": "Opportunity Line Item Id",
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_87016afbb6",
+                        "name": "name",
+                        "label": "Quote Line Item Number",
+                        "visible": true,
+                        "datatype": "auto_number"
+                    },
+                    {
+                        "id": "fLd_ec0d1b34f5",
+                        "name": "line_number",
+                        "label": "Line Number",
+                        "visible": false,
+                        "datatype": "number"
+                    },
+                    {
+                        "id": "fLd_955fb98ddb",
+                        "name": "last_modified_date",
+                        "label": "Last Modified Date",
+                        "visible": false,
+                        "datatype": "datetime"
+                    },
+                    {
+                        "id": "fLd_ae15ac7472",
+                        "name": "last_modified_by_id",
+                        "label": "Last Modified By",
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_0054d3c910",
+                        "name": "discount",
+                        "label": "Discount",
+                        "visible": false,
+                        "datatype": "percent"
+                    },
+                    {
+                        "id": "fLd_dce0f268fb",
+                        "name": "description",
+                        "label": "Description",
+                        "visible": false,
+                        "datatype": "textarea"
+                    },
+                    {
+                        "id": "fLd_1d71ea7b20",
+                        "name": "created_date",
+                        "label": "Created Date",
+                        "visible": false,
+                        "datatype": "datetime"
+                    },
+                    {
+                        "id": "fLd_a8c8a52fe3",
+                        "name": "created_by_id",
+                        "label": "Created By",
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    }
+                ],
+                "object": {
+                    "id": "obJ_fac69fad9afb43",
+                    "name": "quote_line_item",
+                    "label": "Quote Line Item"
+                },
+                "is_added": false,
+                "related_field": {
+                    "id": "fLd_a56d9f8ae6",
+                    "name": "product_id",
+                    "label": "Product",
+                    "datatype": null
+                }
+            }
+        ]
+    },
+    "target": {
+        "id": "GEN_6e5df29b1",
+        "object_name": "target",
+        "name": "new_layout",
+        "label": "New Layout",
+        "sections": [
+            {
+                "id": "section_1",
+                "title": "Basic Information",
+                "fields": [
+                    "name",
+                    "target",
+                    "total_slab_achivement",
+                    "period",
+                    "total_weighted_achievement",
+                    "basic_pay",
+                    "total_actual_amount",
+                    "users_id"
+                ]
+            }
+        ]
+    },
+    "invoice_item": {
+        "id": "GEN_a7fcb1496",
+        "object_name": "invoice_item",
+        "name": "new_layout",
+        "label": "New Layout",
+        "sections": [
+            {
+                "id": "section_1",
+                "title": "Basic Information",
+                "fields": [
+                    "invoice_id",
+                    "name",
+                    "account_id",
+                    "product_id",
+                    "quantity",
+                    "weight",
+                    "unit_price",
+                    "discount_amount",
+                    "tax_percent",
+                    "tax_amount",
+                    "total_amount",
+                    "size"
+                ]
+            },
+            {
+                "id": "section_2",
+                "title": "System Information",
+                "fields": [
+                    "created_date",
+                    "owner_id",
+                    "created_by_id",
+                    "last_modified_by_id",
+                    "last_modified_date"
+                ]
+            }
+        ],
+        "related_lists": [
+            {
+                "fields": [],
+                "object": {
+                    "id": "file_id",
+                    "name": "file",
+                    "label": "Files"
+                },
+                "is_added": false,
+                "related_field": {
+                    "id": "file_record_id",
+                    "name": "record_id",
+                    "label": "File",
+                    "datatype": "file"
+                }
+            }
+        ]
+    },
+    "quote_line_item": {
+        "id": "GEN_4612774c7",
+        "object_name": "quote_line_item",
+        "name": "new_layout",
+        "label": "New Layout",
+        "sections": [
+            {
+                "id": "section_1",
+                "title": "Basic Information",
+                "fields": [
+                    "quote_id",
+                    "product_id",
+                    "name",
+                    "quantity",
+                    "unit_price",
+                    "list_price",
+                    "subtotal",
+                    "discount",
+                    "total_price"
+                ]
+            },
+            {
+                "id": 1762235974287,
+                "title": "System Information",
+                "fields": [
+                    "owner_id",
+                    "created_date",
+                    "created_by_id",
+                    "last_modified_date"
+                ]
+            }
+        ],
+        "related_lists": [
+            {
+                "fields": [],
+                "object": {
+                    "id": "file_id",
+                    "name": "file",
+                    "label": "Files"
+                },
+                "is_added": false,
+                "related_field": {
+                    "id": "file_record_id",
+                    "name": "record_id",
+                    "label": "File",
+                    "datatype": "file"
+                }
+            }
+        ]
+    },
+    "opportunity_lineitem": {
+        "id": "GEN_6d66dcf2e",
+        "object_name": "opportunity_lineitem",
+        "name": "new_layout",
+        "label": "New Layout",
+        "sections": [
+            {
+                "id": "section_1",
+                "title": "New Section",
+                "fields": [
+                    "name",
+                    "opportunity_id",
+                    "total_price",
+                    "unit_price"
+                ]
+            },
+            {
+                "id": "section_2",
+                "title": "System Information",
+                "fields": [
+                    "owner_id",
+                    "created_date",
+                    "created_by_id",
+                    "last_modified_by_id"
+                ]
+            }
+        ],
+        "related_lists": [
+            {
+                "fields": [],
+                "object": {
+                    "id": "file_id",
+                    "name": "file",
+                    "label": "Files"
+                },
+                "is_added": false,
+                "related_field": {
+                    "id": "file_record_id",
+                    "name": "record_id",
+                    "label": "File",
+                    "datatype": "file"
+                }
+            },
+            {
+                "fields": [
+                    {
+                        "id": "fLd_24eb29f405",
+                        "name": "name",
+                        "label": "Quote Line Item Number",
+                        "order": 0,
+                        "visible": true,
+                        "datatype": "auto_number"
+                    },
+                    {
+                        "id": "fLd_b4ba2d62fb",
+                        "name": "subtotal",
+                        "label": "Subtotal",
+                        "order": 1,
+                        "visible": true,
+                        "datatype": "currency"
+                    },
+                    {
+                        "id": "fLd_dc0d92d651",
+                        "name": "total_price",
+                        "label": "Total Price",
+                        "order": 2,
+                        "visible": true,
+                        "datatype": "currency"
+                    },
+                    {
+                        "id": "fLd_a64a8a90c7",
+                        "name": "quantity",
+                        "label": "Quantity",
+                        "order": 3,
+                        "visible": true,
+                        "datatype": "number"
+                    },
+                    {
+                        "id": "fLd_0b05279693",
+                        "name": "list_price",
+                        "label": "List Price",
+                        "order": 4,
+                        "visible": false,
+                        "datatype": "currency"
+                    },
+                    {
+                        "id": "fLd_c9f0ee03f3",
+                        "name": "unit_price",
+                        "label": "Unit Price",
+                        "order": 5,
+                        "visible": false,
+                        "datatype": "currency"
+                    },
+                    {
+                        "id": "fLd_a58179f80b",
+                        "name": "sort_order",
+                        "label": "Sort Order",
+                        "order": 6,
+                        "visible": false,
+                        "datatype": "number"
+                    },
+                    {
+                        "id": "fLd_72cb3fa797",
+                        "name": "service_date",
+                        "label": "Service Date",
+                        "order": 7,
+                        "visible": false,
+                        "datatype": "date"
+                    },
+                    {
+                        "id": "fLd_41a039606e",
+                        "name": "quote_id",
+                        "label": "Quote",
+                        "order": 8,
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_7bc91cf2a0",
+                        "name": "product_id",
+                        "label": "Product",
+                        "order": 9,
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_68b142ccd4",
+                        "name": "owner_id",
+                        "label": "Owner",
+                        "order": 10,
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_8b4dfbbd01",
+                        "name": "opportunity_lineitem_id",
+                        "label": "Opportunity Line Item Id",
+                        "order": 11,
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_5eedefe053",
+                        "name": "line_number",
+                        "label": "Line Number",
+                        "order": 12,
+                        "visible": false,
+                        "datatype": "number"
+                    },
+                    {
+                        "id": "fLd_5d4e25a1a2",
+                        "name": "last_modified_date",
+                        "label": "Last Modified Date",
+                        "order": 13,
+                        "visible": false,
+                        "datatype": "datetime"
+                    },
+                    {
+                        "id": "fLd_55688d063d",
+                        "name": "last_modified_by_id",
+                        "label": "Last Modified By",
+                        "order": 14,
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    },
+                    {
+                        "id": "fLd_158e43f599",
+                        "name": "discount",
+                        "label": "Discount",
+                        "order": 15,
+                        "visible": false,
+                        "datatype": "percent"
+                    },
+                    {
+                        "id": "fLd_292b7ed4a5",
+                        "name": "description",
+                        "label": "Description",
+                        "order": 16,
+                        "visible": false,
+                        "datatype": "textarea"
+                    },
+                    {
+                        "id": "fLd_2ee7ba2628",
+                        "name": "created_date",
+                        "label": "Created Date",
+                        "order": 17,
+                        "visible": false,
+                        "datatype": "datetime"
+                    },
+                    {
+                        "id": "fLd_f504b79455",
+                        "name": "created_by_id",
+                        "label": "Created By",
+                        "order": 18,
+                        "visible": false,
+                        "datatype": "lookup_relationship"
+                    }
+                ],
+                "object": {
+                    "id": "obJ_c3de7d667e384b",
+                    "icon": "QuoteDownCircleFreeIcons",
+                    "name": "quote_line_item",
+                    "label": "Quote Line Item",
+                    "icon_color": "#2568ef"
+                },
+                "is_added": false,
+                "related_field": {
+                    "id": "fLd_41a039606e",
+                    "name": "quote_id",
+                    "label": "Quote",
+                    "datatype": null
+                }
+            }
+        ]
+    },
+    "ticket": {
+        "id": "GEN_145709100",
+        "object_name": "ticket",
+        "name": "new_layout",
+        "label": "New Layout",
+        "sections": [
+            {
+                "id": "section_1",
+                "title": "New Section",
+                "fields": [
+                    "name",
+                    "auto_num"
+                ]
+            },
+            {
+                "id": "section_2",
+                "title": "Basic Information",
+                "fields": [
+                    "accounts",
+                    "count"
+                ]
+            }
+        ]
+    },
+    "call": {
+        "id": "GEN_3440fcdbd9",
+        "object_name": "call",
+        "name": "new_layout",
+        "label": "New Layout",
+        "sections": [
+            {
+                "title": "Basic Information",
+                "fields": [
+                    "matched_object",
+                    "name",
+                    "start_time",
+                    "end_time",
+                    "from_number",
+                    "matched_record_id",
+                    "description",
+                    "duration",
+                    "call_status",
+                    "call_type",
+                    "disposition"
+                ]
+            },
+            {
+                "title": "System Details",
+                "fields": [
+                    "created_by_id",
+                    "created_date",
+                    "last_modified_by_id",
+                    "last_modified_date",
+                    "owner_id"
+                ]
+            }
+        ]
+    },
+    "email": {
+        "id": "GEN_7c9e5a1f3",
+        "object_name": "email",
+        "name": "new_layout",
+        "label": "New Layout",
+        "sections": [
+            {
+                "title": "Basic Information",
+                "fields": [
+                    "name",
+                    "subject",
+                    "status",
+                    "to_email",
+                    "from_email"
+                ]
+            },
+            {
+                "title": "System Details",
+                "fields": [
+                    "created_by_id",
+                    "created_date",
+                    "last_modified_by_id",
+                    "last_modified_date",
+                    "owner_id"
+                ]
+            }
+        ],
+        "related_lists": [
+            {
+                "fields": [],
+                "object": {
+                    "id": "file_id",
+                    "name": "file",
+                    "label": "Files"
+                },
+                "is_added": false,
+                "related_field": {
+                    "id": "file_record_id",
+                    "name": "record_id",
+                    "label": "File",
+                    "datatype": "file"
+                }
+            }
+        ]
+    },
+    "task": {
+        "sections": [
+            {
+                "title": "Basic Information",
+                "fields": [
+                    "subject",
+                    "status",
+                    "due_date",
+                    "assigned_to_id",
+                    "object_id",
+                    "related_to_object_id",
+                    "description"
+                ]
+            },
+            {
+                "title": "System Details",
+                "fields": [
+                    "created_by_id",
+                    "created_date",
+                    "last_modified_by_id",
+                    "last_modified_date",
+                    "owner_id"
+                ]
+            }
+        ],
+        "related_lists": [
+            {
+                "fields": [],
+                "object": {
+                    "id": "file_id",
+                    "name": "file",
+                    "label": "Files"
+                },
+                "is_added": false,
+                "related_field": {
+                    "id": "file_record_id",
+                    "name": "record_id",
+                    "label": "File",
+                    "datatype": "file"
+                }
+            }
+        ]
+    },
+    "event": {
+        "id": "GEN_event01",
+        "object_name": "event",
+        "name": "new_layout",
+        "label": "New Layout",
+        "sections": [
+            {
+                "id": "section_1",
+                "title": "Event Information",
+                "fields": [
+                    "name",
+                    "subject",
+                    "users_id",
+                    "start",
+                    "end",
+                    "description"
+                ]
+            },
+            {
+                "id": "section_2",
+                "title": "More Information",
+                "fields": [
+                    "contacts_id",
+                    "accounts_id",
+                    "leads_id"
+                ]
+            },
+            {
+                "id": "section_3",
+                "title": "System Information",
+                "fields": [
+                    "owner_id",
+                    "created_by_id",
+                    "created_date",
+                    "last_modified_by_id",
+                    "last_modified_date"
+                ]
+            }
+        ],
+        "related_lists": [
+            {
+                "fields": [],
+                "object": {
+                    "id": "file_id",
+                    "name": "file",
+                    "label": "Files"
+                },
+                "is_added": false,
+                "related_field": {
+                    "id": "file_record_id",
+                    "name": "record_id",
+                    "label": "File",
+                    "datatype": "file"
+                }
+            }
+        ]
+    },
+    "campaign": {
+        "id": "GEN_campaign01",
+        "object_name": "campaign",
+        "name": "default_layout",
+        "label": "Campaign Page Layout",
+        "sections": [
+            {
+                "id": "section_1",
+                "title": "Basic Information",
+                "fields": [
+                    "name",
+                    "is_active",
+                    "type",
+                    "status",
+                    "start_date",
+                    "end_date",
+                    "expected_revenue",
+                    "budgeted_cost",
+                    "actual_cost",
+                    "expected_response",
+                    "number_sent",
+                    "parent_id",
+                    "description"
+                ]
+            },
+            {
+                "id": "section_2",
+                "title": "System Information",
+                "fields": [
+                    "owner_id",
+                    "created_by_id",
+                    "created_date",
+                    "last_modified_by_id",
+                    "last_modified_date"
+                ]
+            }
+        ],
+        "related_lists": [
+            {
+                "object": {
+                    "name": "file",
+                    "label": "Files"
+                },
+                "related_field": {
+                    "name": "record_id"
+                },
+                "fields": [
+                    {
+                        "name": "name",
+                        "label": "Name",
+                        "visible": true
+                    },
+                    {
+                        "name": "created_date",
+                        "label": "Created Date",
+                        "visible": true
+                    }
+                ]
+            },
+            {
+                "object": {
+                    "name": "campaign_member",
+                    "label": "Campaign Member"
+                },
+                "related_field": {
+                    "name": "campaign_id"
+                },
+                "fields": [
+                    {
+                        "name": "name",
+                        "label": "Name",
+                        "visible": true
+                    },
+                    {
+                        "name": "campaign_status",
+                        "label": "Status",
+                        "visible": true
+                    }
+                ]
+            },
+            {
+                "object": {
+                    "name": "opportunity",
+                    "label": "Opportunity"
+                },
+                "related_field": {
+                    "name": "primary_campaign_source_id"
+                },
+                "fields": [
+                    {
+                        "name": "name",
+                        "label": "Name",
+                        "visible": true
+                    },
+                    {
+                        "name": "stages",
+                        "label": "Stage",
+                        "visible": true
+                    },
+                    {
+                        "name": "amount",
+                        "label": "Amount",
+                        "visible": true
+                    },
+                    {
+                        "name": "close_date",
+                        "label": "Close Date",
+                        "visible": true
+                    }
+                ]
+            },
+            {
+                "object": {
+                    "name": "campaign",
+                    "label": "Campaign"
+                },
+                "related_field": {
+                    "name": "parent_id"
+                },
+                "fields": [
+                    {
+                        "name": "name",
+                        "label": "Name",
+                        "visible": true
+                    },
+                    {
+                        "name": "status",
+                        "label": "Status",
+                        "visible": true
+                    },
+                    {
+                        "name": "type",
+                        "label": "Type",
+                        "visible": true
+                    },
+                    {
+                        "name": "start_date",
+                        "label": "Start Date",
+                        "visible": true
+                    }
+                ]
+            }
+        ]
+    }
+}

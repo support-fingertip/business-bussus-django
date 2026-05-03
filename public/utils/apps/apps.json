@@ -1,0 +1,41 @@
+[
+  {
+    "disable_end_user_personalisation": true,
+    "disable_temporary_tabs": true,
+    "use_app_image_color_for_org_theme": true,
+    "use_omni_channel_sidebar": true,
+    "description": "A default app",
+    "name": "sales",
+    "label": "Sales",
+    "tabs": [
+      {"name": "accounts", "type": "object"},
+      {"name": "calendar", "type": "object"},
+      {"name": "campaign", "type": "object"},
+      {"name": "campaign_member", "type": "object"},
+      {"name": "contact", "type": "object"},
+      {"name": "Dashboard", "type": "custom_tab"},
+      {"name": "email", "type": "object"},
+      {"name": "event", "type": "object"},
+      {"name": "invoice", "type": "object"},
+      {"name": "invoice_item", "type": "object"},
+      {"name": "leads", "type": "object"},
+      {"name": "opportunity", "type": "object"},
+      {"name": "opportunity_lineitem", "type": "object"},
+      {"name": "product", "type": "object"},
+      {"name": "quote", "type": "object"},
+      {"name": "quote_line_item", "type": "object"},
+      {"name": "task", "type": "object"},
+      {"name": "visit", "type": "object"}
+    ],
+    "developer": "",
+    "setup_experiance": "Beautiful",
+    "navigation_style": "good",
+    "form_factor": "2",
+    "color": "#23af58",
+    "image": "",
+    "organisation": "fingertipplus",
+    "logo": "",
+    "utility_bar": "",
+    "default_landing_tab": ""
+  }
+]

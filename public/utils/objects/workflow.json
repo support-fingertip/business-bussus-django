@@ -1,0 +1,203 @@
+{
+  "workflow": [
+    {
+      "id": "wF-ef7fe40e-537",
+      "name": "Quote Line Item",
+      "trigger_type": "create_records",
+      "module_name": "quote_line_item",
+      "description": "This is the default workflow for quote line items."
+    },
+    {
+      "id": "wF-12c205dc-0d7",
+      "name": "Invoice Item",
+      "trigger_type": "create_records",
+      "module_name": "invoice_item",
+      "description": "This is the default workflow for invoice items."
+    }
+  ],
+  "workflow_edge": [
+    {
+      "id": "wfED-3690e447-23b",
+      "workflow_id": "wF-ef7fe40e-537",
+      "source_id": "wfND-0926ca35-d12",
+      "target_id": "wfND-34c84bad-fff",
+      "source_handle": null,
+      "is_deleted": false
+    },
+    {
+      "id": "wfED-8efaf624-cbe",
+      "workflow_id": "wF-ef7fe40e-537",
+      "source_id": "wfND-d336460f-2f1",
+      "target_id": "wfND-8e90e2a2-79f",
+      "source_handle": null,
+      "is_deleted": false
+    },
+    {
+      "id": "wfED-d560ee1a-c88",
+      "workflow_id": "wF-ef7fe40e-537",
+      "source_id": "wfND-8e90e2a2-79f",
+      "target_id": "wfND-0926ca35-d12",
+      "source_handle": null,
+      "is_deleted": false
+    },
+    {
+      "id": "wfED-31f23064-0f0",
+      "workflow_id": "wF-12c205dc-0d7",
+      "source_id": "wfND-76a5da7c-43b",
+      "target_id": "wfND-21c7dedd-414",
+      "source_handle": null,
+      "is_deleted": false
+    },
+    {
+      "id": "wfED-f05d1469-cef",
+      "workflow_id": "wF-12c205dc-0d7",
+      "source_id": "wfND-b927e1c4-627",
+      "target_id": "wfND-76a5da7c-43b",
+      "source_handle": null,
+      "is_deleted": false
+    }
+  ],
+  "workflow_node": [
+    {
+      "id": "wfND-0926ca35-d12",
+      "workflow_id": "wF-ef7fe40e-537",
+      "label": "Action Node",
+      "type": "standard",
+      "node_type": "Action",
+      "position": { "x": 20, "y": 224 },
+      "data": {
+        "label": "Action Node",
+        "filters": {
+          "config": {
+            "extraFields": [
+              {
+                "name": "total_price",
+                "value": "(quantity * unit_price) - ((quantity * unit_price) * (discount / 100))",
+                "valueType": "formula"
+              }
+            ]
+          },
+          "actionType": "update_field",
+          "conditions": []
+        },
+        "type_name": "Action"
+      },
+      "measured": { "width": 120, "height": 50 }
+    },
+    {
+      "id": "wfND-34c84bad-fff",
+      "workflow_id": "wF-ef7fe40e-537",
+      "label": "End Node",
+      "type": "standard",
+      "node_type": "End",
+      "position": { "x": 20, "y": 324 },
+      "data": { "label": "End Node", "filters": {}, "type_name": "End" },
+      "measured": { "width": 120, "height": 50 }
+    },
+    {
+      "id": "wfND-8e90e2a2-79f",
+      "workflow_id": "wF-ef7fe40e-537",
+      "label": "Action Node",
+      "type": "standard",
+      "node_type": "Action",
+      "position": { "x": 20, "y": 124 },
+      "data": {
+        "label": "Action Node",
+        "filters": {
+          "config": {
+            "extraFields": [
+              {
+                "name": "subtotal",
+                "value": "quantity * unit_price",
+                "valueType": "formula"
+              }
+            ]
+          },
+          "actionType": "update_field",
+          "conditions": []
+        },
+        "type_name": "Action"
+      },
+      "measured": { "width": 120, "height": 50 }
+    },
+    {
+      "id": "wfND-d336460f-2f1",
+      "workflow_id": "wF-ef7fe40e-537",
+      "label": "Start Node",
+      "type": "standard",
+      "node_type": "Start",
+      "position": { "x": 20, "y": 24 },
+      "data": {
+        "label": "Start Node",
+        "filters": {
+          "config": { "extraFields": [] },
+          "module": "quote_line_item",
+          "trigger": "Create Records",
+          "conditions": []
+        },
+        "type_name": "Start"
+      },
+      "measured": { "width": 120, "height": 50 }
+    },
+    {
+      "id": "wfND-21c7dedd-414",
+      "workflow_id": "wF-12c205dc-0d7",
+      "label": "End Node",
+      "type": "standard",
+      "node_type": "End",
+      "position": { "x": 41, "y": 210 },
+      "data": { "label": "End Node", "filters": {}, "type_name": "End" },
+      "measured": { "width": 120, "height": 50 }
+    },
+    {
+      "id": "wfND-76a5da7c-43b",
+      "workflow_id": "wF-12c205dc-0d7",
+      "label": "Action Node",
+      "type": "standard",
+      "node_type": "Action",
+      "position": { "x": 41, "y": 110 },
+      "data": {
+        "label": "Action Node",
+        "filters": {
+          "config": {
+            "extraFields": [
+              {
+                "name": "tax_amount",
+                "value": "(unit_price * quantity) * (tax_percent / 100)",
+                "valueType": "formula"
+              },
+              {
+                "name": "total_amount",
+                "value": "((unit_price * quantity) * (tax_percent / 100)) + (unit_price * quantity)",
+                "valueType": "formula"
+              }
+            ]
+          },
+          "actionType": "update_field",
+          "conditions": []
+        },
+        "type_name": "Action"
+      },
+      "measured": { "width": 120, "height": 50 }
+    },
+    {
+      "id": "wfND-b927e1c4-627",
+      "workflow_id": "wF-12c205dc-0d7",
+      "label": "Start Node",
+      "type": "standard",
+      "node_type": "Start",
+      "position": { "x": 41, "y": 10 },
+      "data": {
+        "label": "Start Node",
+        "filters": {
+          "config": { "extraFields": [] },
+          "module": "invoice_item",
+          "trigger": "Create Records",
+          "conditions": []
+        },
+        "type_name": "Start"
+      },
+      "measured": { "width": 120, "height": 50 }
+    }
+  ]
+}

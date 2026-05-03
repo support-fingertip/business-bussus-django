@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -l \"total\\\\|amount\\\\|subtotal\\\\|grand\" \"d:\\\\claude\\\\bussus-bussiness-backend\"/public/utils/objects/fields/*.json)",
+      "Bash(py -m pip install whitenoise)",
+      "Bash(py manage.py collectstatic --noinput)",
+      "Bash(py -c \"import django; print\\(django.get_version\\(\\)\\)\")"
+    ]
+  }
+}

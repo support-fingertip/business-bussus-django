@@ -1,0 +1,12 @@
+{
+    "task": [
+        "name",
+        "subject",
+        "status",
+        "object_id",
+        "created_by_id",
+        "assigned_to_id",
+        "related_to_object_id",
+        "created_date"
+    ]
+}

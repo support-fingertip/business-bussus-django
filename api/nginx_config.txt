@@ -1,0 +1,50 @@
+server {
+    server_name dev0.bussus.com;
+
+    # Frontend (Next.js)
+    location / {
+        proxy_pass http://localhost:3000;  # qa Next.js
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    # Backend (Django) API
+    location /api/ {
+        rewrite ^/api/(.*)$ /$1 break;
+        proxy_pass http://127.0.0.1:8001;  # qa Django Backend
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+	proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    # Static files for Django (static assets)
+    location /static/ {
+        alias /var/www/version2_dev/staticfiles/;
+    }
+
+    # Media files (uploaded content)
+    location /api/media/ {
+        alias /var/www/media/;
+    } # HTTP only (no SSL)
+
+    listen 443 ssl; # managed by Certbot
+    ssl_certificate /etc/letsencrypt/live/dev0.bussus.com/fullchain.pem; # manag>
+    ssl_certificate_key /etc/letsencrypt/live/dev0.bussus.com/privkey.pem; # man>
+    include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
+
+}
+# Redirect HTTP to HTTPS
+server {
+    if ($host = dev0.bussus.com) {
+        return 301 https://$host$request_uri;  # Redirect to HTTPS (if SSL is e>
+    }
+    listen 80;
+    server_name dev0.bussus.com;
+    return 404; # No HTTP allowed
+}

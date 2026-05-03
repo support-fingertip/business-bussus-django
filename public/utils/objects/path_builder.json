@@ -1,0 +1,34 @@
+{
+    "path": [
+        {
+            "id": "pBl_5cc95bbd-e24",
+            "name": "Status",
+            "label": "Status",
+            "object_name": "leads",
+            "field_name": "status",
+            "stages": [
+                {
+                    "fields": [],
+                    "guidance": "",
+                    "stageName": "Open - Not Contacted"
+                },
+                {
+                    "fields": [],
+                    "guidance": "",
+                    "stageName": "Working - Contacted"
+                },
+                {
+                    "fields": [],
+                    "guidance": "",
+                    "stageName": "Closed - Converted"
+                },
+                {
+                    "fields": [],
+                    "guidance": "",
+                    "stageName": "Closed - Not Converted"
+                }
+            ],
+            "is_active": true
+        }
+    ]
+}

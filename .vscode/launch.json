@@ -1,0 +1,25 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python Debugger: FastAPI",
+            "type": "debugpy",
+            "request": "launch",
+            "python": "d:\\disks\\crmtool\\backend\\Scripts\\python.exe",
+            "module": "uvicorn",
+            "args": [
+                "version2.asgi:application",
+                "--host",
+                "0.0.0.0",
+                "--port",
+                "8080",
+                "--reload"
+            ],
+            "jinja": true,
+            "justMyCode": true,
+            "env": {
+                "DJANGO_SETTINGS_MODULE": "version2.settings"
+            }
+        }
+    ]
+}

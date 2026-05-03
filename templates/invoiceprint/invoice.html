@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Invoice {{ invoice.name }}</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 20mm 15mm;
+        }
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            color: #222;
+            font-size: 12px;
+            line-height: 1.4;
+            margin: 0;
+            padding: 0;
+        }
+        .invoice-wrapper {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 10px;
+            position: relative;
+            z-index: 1;
+        }
+        /* ───────── Watermark ───────── */
+        .watermark {
+            position: fixed;
+            top: 35%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-30deg);
+            opacity: 0.08;
+            z-index: 0;
+            pointer-events: none;
+            width: 400px;
+            max-width: 60%;
+            text-align: center;
+        }
+        .watermark img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        .watermark-text {
+            position: fixed;
+            top: 35%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-30deg);
+            opacity: 0.07;
+            z-index: 0;
+            pointer-events: none;
+            font-weight: 900;
+            color: #4472C4;
+            letter-spacing: 4px;
+            text-align: center;
+            width: 70%;
+            max-width: 600px;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+        /* Size the watermark text based on name length via separate classes */
+        .watermark-text.short  { font-size: 110px; }   /* ≤ 6 chars */
+        .watermark-text.medium { font-size: 80px;  }   /* 7–10 chars */
+        .watermark-text.long   { font-size: 56px;  letter-spacing: 2px; }   /* 11–18 chars */
+        .watermark-text.xlong  { font-size: 38px;  letter-spacing: 1px; }   /* > 18 chars */
+        @media print {
+            .watermark, .watermark-text {
+                opacity: 0.08;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+        }
+        /* ───────── Header ───────── */
+        .invoice-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding-bottom: 20px;
+            border-bottom: 3px solid #4472C4;
+            margin-bottom: 20px;
+        }
+        .company-info h1 {
+            margin: 0 0 5px 0;
+            color: #4472C4;
+            font-size: 26px;
+        }
+        .company-info p {
+            margin: 2px 0;
+            color: #555;
+        }
+        .invoice-meta {
+            text-align: right;
+        }
+        .invoice-meta h2 {
+            margin: 0;
+            font-size: 28px;
+            color: #4472C4;
+            letter-spacing: 2px;
+        }
+        .invoice-meta .invoice-number {
+            font-size: 16px;
+            font-weight: bold;
+            margin-top: 6px;
+        }
+        .invoice-meta .invoice-dates {
+            font-size: 12px;
+            color: #555;
+            margin-top: 6px;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+            text-transform: uppercase;
+            background: #E7F3FF;
+            color: #0366d6;
+            margin-top: 8px;
+        }
+        .status-badge.paid { background: #D4EDDA; color: #155724; }
+        .status-badge.pending { background: #FFF3CD; color: #856404; }
+        .status-badge.overdue { background: #F8D7DA; color: #721C24; }
+        .status-badge.cancelled { background: #E2E3E5; color: #383D41; }
+
+        /* ───────── Billing section ───────── */
+        .billing-section {
+            display: flex;
+            justify-content: space-between;
+            gap: 30px;
+            margin-bottom: 25px;
+        }
+        .billing-block {
+            flex: 1;
+            padding: 12px 15px;
+            background: #F7F9FC;
+            border-left: 3px solid #4472C4;
+            border-radius: 3px;
+        }
+        .billing-block h3 {
+            margin: 0 0 8px 0;
+            font-size: 13px;
+            text-transform: uppercase;
+            color: #4472C4;
+            letter-spacing: 0.5px;
+        }
+        .billing-block p {
+            margin: 3px 0;
+        }
+        .billing-block .label {
+            display: inline-block;
+            min-width: 90px;
+            color: #666;
+        }
+
+        /* ───────── Line items table ───────── */
+        table.items {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        table.items thead {
+            background: #4472C4;
+            color: #FFF;
+        }
+        table.items thead th {
+            padding: 10px 8px;
+            text-align: left;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        table.items tbody td {
+            padding: 10px 8px;
+            border-bottom: 1px solid #E5E7EB;
+        }
+        table.items tbody tr:nth-child(even) {
+            background: #F9FAFB;
+        }
+        table.items .text-right { text-align: right; }
+        table.items .text-center { text-align: center; }
+
+        /* ───────── Totals section ───────── */
+        .totals-section {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 25px;
+        }
+        .totals-box {
+            min-width: 280px;
+        }
+        .totals-box table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .totals-box td {
+            padding: 6px 10px;
+        }
+        .totals-box .label {
+            color: #555;
+            text-align: right;
+        }
+        .totals-box .value {
+            text-align: right;
+            font-weight: bold;
+        }
+        .totals-box tr.grand-total {
+            background: #FFD966;
+        }
+        .totals-box tr.grand-total td {
+            padding: 10px;
+            font-size: 14px;
+            color: #000;
+        }
+
+        /* ───────── Footer ───────── */
+        .footer {
+            margin-top: 30px;
+            padding-top: 15px;
+            border-top: 1px solid #E5E7EB;
+            text-align: center;
+            color: #666;
+            font-size: 11px;
+        }
+        .footer p { margin: 4px 0; }
+
+        /* Notes */
+        .notes {
+            padding: 12px 15px;
+            background: #FFFBEA;
+            border-left: 3px solid #F0B429;
+            border-radius: 3px;
+            margin-bottom: 20px;
+            font-size: 11px;
+            color: #555;
+        }
+
+        /* Print optimization */
+        @media print {
+            .invoice-wrapper { padding: 0; }
+            body { font-size: 11px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="invoice-wrapper">
+
+        <!-- ───────── Header ───────── -->
+        <table style="width:100%; border-collapse:collapse; border-bottom:3px solid #4472C4; margin-bottom:12px; line-height:1.2;">
+            <tr>
+                <td style="vertical-align:top; width:60%; padding:0 0 8px 0;">
+                    <div style="margin:0 0 2px 0; color:#4472C4; font-size:22px; font-weight:bold;">{{ organization.name|default:"Your Company" }}</div>
+                    {% if organization.domain %}<span style="color:#555; font-size:11px;">{{ organization.domain }}</span><br>{% endif %}
+                    {% if organization.email %}<span style="color:#555; font-size:11px;">{{ organization.email }}</span><br>{% endif %}
+                    {% if organization.phone %}<span style="color:#555; font-size:11px;">{{ organization.phone }}</span>{% endif %}
+                </td>
+                <td style="vertical-align:top; width:40%; text-align:right; padding:0 0 8px 0;">
+                    <div style="margin:0; font-size:24px; color:#4472C4; letter-spacing:2px; font-weight:bold;">INVOICE</div>
+                    <div style="font-size:14px; font-weight:bold; margin-top:2px;">{{ invoice.name }}</div>
+                    <div style="font-size:11px; color:#555; margin-top:2px;">
+                        {% if invoice.invoice_date %}Issued: {{ invoice.invoice_date }}{% endif %}
+                        {% if invoice.invoice_date and invoice.due_date %} &nbsp;|&nbsp; {% endif %}
+                        {% if invoice.due_date %}Due: {{ invoice.due_date }}{% endif %}
+                    </div>
+                </td>
+            </tr>
+        </table>
+
+        <!-- ───────── Status Banner (centered, bold, large) ───────── -->
+        {% if invoice.payment_status %}
+        <table style="width:100%; border-collapse:collapse; margin-bottom:12px;">
+            <tr>
+                <td style="text-align:center;">
+                    <span class="status-badge {{ invoice.payment_status|lower }}" style="display:inline-block; font-size:18px; font-weight:bold; padding:8px 24px; border-radius:20px; letter-spacing:1px;">{{ invoice.payment_status|title }}</span>
+                </td>
+            </tr>
+        </table>
+        {% endif %}
+
+        <!-- ───────── Billing information (two columns) ───────── -->
+        <table style="width:100%; border-collapse:separate; border-spacing:10px 0; margin-bottom:12px; line-height:1.15; font-size:11px;">
+            <tr>
+                <td style="width:50%; vertical-align:top; background:#F7F9FC; border-left:3px solid #4472C4; padding:6px 10px;">
+                    <div style="font-size:11px; text-transform:uppercase; color:#4472C4; letter-spacing:0.5px; font-weight:bold; padding-bottom:3px;">Bill To</div>
+                    {% if invoice.bill_to_contact %}<strong>{{ invoice.bill_to_contact }}</strong><br>{% endif %}
+                    {% if account.name %}{{ account.name }}<br>{% endif %}
+                    {% if invoice.email %}{{ invoice.email }}<br>{% endif %}
+                    {% if account.billing_street %}{{ account.billing_street }}<br>{% endif %}
+                    {% if account.billing_city or account.billing_state %}{{ account.billing_city }}{% if account.billing_city and account.billing_state %}, {% endif %}{{ account.billing_state }} {{ account.billing_postal_code }}<br>{% endif %}
+                    {% if account.billing_country %}{{ account.billing_country }}{% endif %}
+                </td>
+                <td style="width:50%; vertical-align:top; background:#F7F9FC; border-left:3px solid #4472C4; padding:6px 10px;">
+                    <div style="font-size:11px; text-transform:uppercase; color:#4472C4; letter-spacing:0.5px; font-weight:bold; padding-bottom:3px;">Invoice Details</div>
+                    {% if invoice.batch %}<span style="color:#666;">Batch:</span> {{ invoice.batch }}<br>{% endif %}
+                    {% if invoice.store %}<span style="color:#666;">Store:</span> {{ invoice.store }}<br>{% endif %}
+                    {% if invoice.vehicle %}<span style="color:#666;">Vehicle:</span> {{ invoice.vehicle }}<br>{% endif %}
+                    {% if invoice.work_order %}<span style="color:#666;">Work Order:</span> {{ invoice.work_order }}<br>{% endif %}
+                    {% if invoice.delivery_status %}<span style="color:#666;">Delivery:</span> {{ invoice.delivery_status }}<br>{% endif %}
+                    {% if invoice.status %}<span style="color:#666;">Status:</span> {{ invoice.status }}{% endif %}
+                </td>
+            </tr>
+        </table>
+
+        <!-- ───────── Line items ───────── -->
+        <table style="width:100%; border-collapse:collapse; margin-bottom:20px;">
+            <tr>
+                <th style="width:5%; background-color:#4472C4; color:#FFFFFF; padding:8px 6px; text-align:left; font-size:11px; text-transform:uppercase; border:1px solid #4472C4;">#</th>
+                <th style="width:32%; background-color:#4472C4; color:#FFFFFF; padding:8px 6px; text-align:left; font-size:11px; text-transform:uppercase; border:1px solid #4472C4;">Product</th>
+                <th style="width:9%; background-color:#4472C4; color:#FFFFFF; padding:8px 6px; text-align:center; font-size:11px; text-transform:uppercase; border:1px solid #4472C4;">Qty</th>
+                <th style="width:9%; background-color:#4472C4; color:#FFFFFF; padding:8px 6px; text-align:center; font-size:11px; text-transform:uppercase; border:1px solid #4472C4;">Unit</th>
+                <th style="width:12%; background-color:#4472C4; color:#FFFFFF; padding:8px 6px; text-align:right; font-size:11px; text-transform:uppercase; border:1px solid #4472C4;">Unit Price</th>
+                <th style="width:11%; background-color:#4472C4; color:#FFFFFF; padding:8px 6px; text-align:right; font-size:11px; text-transform:uppercase; border:1px solid #4472C4;">Discount</th>
+                <th style="width:10%; background-color:#4472C4; color:#FFFFFF; padding:8px 6px; text-align:right; font-size:11px; text-transform:uppercase; border:1px solid #4472C4;">Tax %</th>
+                <th style="width:12%; background-color:#4472C4; color:#FFFFFF; padding:8px 6px; text-align:right; font-size:11px; text-transform:uppercase; border:1px solid #4472C4;">Total</th>
+            </tr>
+            {% for item in invoice_items %}
+            <tr style="background-color: {% if forloop.counter|divisibleby:'2' %}#F9FAFB{% else %}#FFFFFF{% endif %};">
+                <td style="padding:8px 6px; border-bottom:1px solid #E5E7EB;">{{ forloop.counter }}</td>
+                <td style="padding:8px 6px; border-bottom:1px solid #E5E7EB;">
+                    <strong>{{ item.product }}</strong>
+                    {% if item.size %}<br><span style="color:#666; font-size:10px;">Size: {{ item.size }}</span>{% endif %}
+                </td>
+                <td style="padding:8px 6px; text-align:center; border-bottom:1px solid #E5E7EB;">{{ item.quantity|default:0 }}</td>
+                <td style="padding:8px 6px; text-align:center; border-bottom:1px solid #E5E7EB;">{{ item.unit|default:"-" }}</td>
+                <td style="padding:8px 6px; text-align:right; border-bottom:1px solid #E5E7EB;">{{ item.unit_price|default:0|floatformat:2 }}</td>
+                <td style="padding:8px 6px; text-align:right; border-bottom:1px solid #E5E7EB;">{{ item.discount_amount|default:0|floatformat:2 }}</td>
+                <td style="padding:8px 6px; text-align:right; border-bottom:1px solid #E5E7EB;">{{ item.tax_percent|default:0|floatformat:2 }}%</td>
+                <td style="padding:8px 6px; text-align:right; border-bottom:1px solid #E5E7EB;"><strong>{{ item.grant_total|default:0|floatformat:2 }}</strong></td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="8" style="padding:20px; text-align:center; color:#999;">No line items</td>
+            </tr>
+            {% endfor %}
+        </table>
+
+        <!-- ───────── Totals (right-aligned via table layout) ───────── -->
+        <table style="width:100%; border-collapse:collapse; margin-bottom:25px;">
+            <tr>
+                <td style="width:60%;">&nbsp;</td>
+                <td style="width:40%; vertical-align:top;">
+                    <table style="width:100%; border-collapse:collapse;">
+                        <tr>
+                            <td style="padding:6px 10px; color:#555; text-align:right;">Subtotal:</td>
+                            <td style="padding:6px 10px; text-align:right; font-weight:bold;">{{ invoice.total_amount|default:0|floatformat:2 }}</td>
+                        </tr>
+                        {% if invoice.total_quantity %}
+                        <tr>
+                            <td style="padding:6px 10px; color:#555; text-align:right;">Total Quantity:</td>
+                            <td style="padding:6px 10px; text-align:right; font-weight:bold;">{{ invoice.total_quantity }}</td>
+                        </tr>
+                        {% endif %}
+                        <tr>
+                            <td style="padding:6px 10px; color:#555; text-align:right;">Tax:</td>
+                            <td style="padding:6px 10px; text-align:right; font-weight:bold;">{{ invoice.total_tax|default:0|floatformat:2 }}</td>
+                        </tr>
+                        {% if invoice.outstanding_amount %}
+                        <tr>
+                            <td style="padding:6px 10px; color:#555; text-align:right;">Outstanding:</td>
+                            <td style="padding:6px 10px; text-align:right; font-weight:bold;">{{ invoice.outstanding_amount|floatformat:2 }}</td>
+                        </tr>
+                        {% endif %}
+                        <tr style="background:#FFD966;">
+                            <td style="padding:10px; text-align:right; font-size:14px; color:#000;"><strong>Grand Total:</strong></td>
+                            <td style="padding:10px; text-align:right; font-size:14px; font-weight:bold; color:#000;">{{ invoice.grand_total|default:0|floatformat:2 }}</td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+
+        <!-- ───────── Notes ───────── -->
+        {% if invoice.promotional_offer %}
+        <div class="notes">
+            <strong>Notes:</strong> {{ invoice.promotional_offer }}
+        </div>
+        {% endif %}
+
+        <!-- ───────── Footer ───────── -->
+        <div class="footer">
+            <p><strong>Thank you for your business!</strong></p>
+            <p>This is a computer-generated invoice and does not require a signature.</p>
+            {% if invoice.name %}<p>Invoice ID: {{ invoice.name }}</p>{% endif %}
+        </div>
+    </div>
+</body>
+</html>

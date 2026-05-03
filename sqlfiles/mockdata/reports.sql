@@ -1,0 +1,167 @@
+INSERT INTO report_folder(id, name, description, owner_id, created_by_id, last_modified_by_id, visibility, created_date) VALUES
+    ('rpT_b145e4bdc', 'All', 'Folder for sales-related reports', 'USER_ID', 'USER_ID', 'USER_ID', 'public', NOW());
+
+
+-- INSERT INTO report (
+--     id, name, report_type, fields, filters, filter_logic, filter_json, 
+--     group_by, created_by_id, folder_id, 
+--     created_date, last_modified_date, table_name, is_deleted, 
+--     show_row_counts, show_detail_rows, show_subtotals, show_grand_total
+-- ) VALUES
+-- ('GEN_a7adc8fc9', 'Sales by Stores', 'Invoice Item with Invoice', '[{"name": "store", "alias": "store"}, {"name": "tax_amount", "alias": "tax_amount"}, {"name": "tax_amount", "alias": "sum_tax_amount", "aggregate": "sum"}]', NULL, NULL, NULL, '{"rows": ["store"], "columns": []}', 'USER_ID', 'rpT_b145e4bdc', NOW(), NOW(), 'invoice_item', FALSE, TRUE, TRUE, TRUE, TRUE),
+-- ('GEN_e681044cc', 'Invoice Status', 'Invoice', '[{"name": "status", "alias": "status"}]', NULL, NULL, NULL, '{"rows": ["status"], "columns": []}', 'USER_ID', 'rpT_b145e4bdc', NOW(), NOW(), 'invoice', FALSE, TRUE, FALSE, FALSE, FALSE),
+-- ('GEN_13b0dbeb3', 'Lead Status', 'Lead', '[{"name": "status", "alias": "status"}]', NULL, NULL, NULL, '{"rows": ["status"], "columns": []}', 'USER_ID', 'rpT_b145e4bdc', NOW(), NOW(), 'leads', FALSE, TRUE, FALSE, FALSE, FALSE),
+-- ('GEN_bf5baf59d', 'Total Revenue', 'Invoice Item with Invoice', '[{"name": "store", "alias": "store"}, {"name": "total_amount", "alias": "sum_total_amount", "aggregate": "sum"}]', NULL, NULL, NULL, '{"rows": ["store"], "columns": []}', 'USER_ID', 'rpT_b145e4bdc', NOW(), NOW(), 'invoice_item', FALSE, FALSE, FALSE, FALSE, FALSE),
+-- ('GEN_ba2dabee5', 'Accounts Rating', 'Account', '[{"name": "rating", "alias": "rating"}]', NULL, NULL, NULL, '{"rows": ["rating"], "columns": []}', 'USER_ID', 'rpT_b145e4bdc', NOW(), NOW(), 'accounts', FALSE, TRUE, TRUE, FALSE, FALSE),
+-- ('GEN_f85ec85e5', 'Invoice and Product Details', 'Invoice Item with Product', '[
+--   {
+--     "name": "product.name",
+--     "alias": "product_name"
+--   },
+--   {
+--     "name": "total_amount",
+--     "alias": "total_amount"
+--   },
+--   {
+--     "name": "total_amount",
+--     "alias": "sum_total_amount",
+--     "aggregate": "sum"
+--   },
+--   {
+--     "name": "unit_price",
+--     "alias": "unit_price"
+--   },
+--   {
+--     "name": "unit_price",
+--     "alias": "sum_unit_price",
+--     "aggregate": "sum"
+--   },
+--   {
+--     "name": "quantity",
+--     "alias": "quantity"
+--   },
+--   {
+--     "name": "quantity",
+--     "alias": "sum_quantity",
+--     "aggregate": "sum"
+--   }
+-- ]', NULL, NULL, NULL, 
+-- '{
+--   "rows": [
+--     "product.name"
+--   ],
+--   "columns": []
+-- }',
+-- 'USER_ID', 'rpT_b145e4bdc', NOW(), NOW(), 'invoice_item', FALSE, TRUE, FALSE, FALSE, FALSE);
+
+
+INSERT INTO dashboard_folders(id, name, label, description, parent_id, owner_id, created_by_id, last_modified_by_id) VALUES
+    ('dF_b145e4bdc', 'All', 'All Dashboards', NULL, NULL, 'USER_ID', 'USER_ID', 'USER_ID');
+
+-- INSERT INTO dashboard(id, name, components, folder_name, layout, created_by_id, folder_id)
+-- VALUES(
+--     'dB_b145e4bdc',
+--     'Sales Dashboard',
+--     '[
+--     "Top 15 Product Sold in Units",
+--     "Rating of Accounts",
+--     "Billing Status",
+--     "Stores VS Sales",
+--     "Lead Status",
+--     "Total Revenue"
+--     ]',
+--     'All',
+--     '
+--     {
+--         "totalGrids": 6,
+--         "canvasSettings": {
+--             "GEN_3c297ebd8": {
+--             "h": 5,
+--             "i": "GEN_3c297ebd8",
+--             "w": 8,
+--             "x": 4,
+--             "y": 10
+--             },
+--             "GEN_3c3dd16b8": {
+--             "h": 3,
+--             "i": "GEN_3c3dd16b8",
+--             "w": 4,
+--             "x": 0,
+--             "y": 5
+--             },
+--             "GEN_6283b5acd": {
+--             "h": 5,
+--             "i": "GEN_6283b5acd",
+--             "w": 5,
+--             "x": 7,
+--             "y": 0
+--             },
+--             "GEN_7637e43dd": {
+--             "h": 5,
+--             "i": "GEN_7637e43dd",
+--             "w": 7,
+--             "x": 0,
+--             "y": 0
+--             },
+--             "GEN_7d10b92b3": {
+--             "h": 5,
+--             "i": "GEN_7d10b92b3",
+--             "w": 4,
+--             "x": 0,
+--             "y": 8
+--             },
+--             "GEN_d56d16eb7": {
+--             "h": 5,
+--             "i": "GEN_d56d16eb7",
+--             "w": 8,
+--             "x": 4,
+--             "y": 5
+--             }
+--         }
+--     }
+--     ',
+--     'USER_ID',
+--     'dF_b145e4bdc'
+-- );
+
+-- INSERT INTO dashboard_component(id,name,type,data_source,filters,metric_config,chart_config,geometry,created_date,filter_logic,chart_data,report_id,widget_settings,listview_id,dashboard_id) VALUES ('GEN_3c3dd16b8','Total Revenue','number',NULL,NULL,NULL,'{"number": "55613927"}',NULL,NOW(),NULL,NULL,'GEN_bf5baf59d','{"value": "sum_total_amount", "x_axis": ["store"], "y_axis": "sum_total_amount", "sort_by": [], "color_by": "store", "sliced_by": "store", "display_as": "number", "show_values": false, "widget_name": "Total Revenue", "table_groups": [], "display_units": "full_number", "table_columns": ["store"], "max_groups_displayed": 100}',NULL,NULL);
+-- INSERT INTO dashboard_component(id,name,type,data_source,filters,metric_config,chart_config,geometry,created_date,filter_logic,chart_data,report_id,widget_settings,listview_id,dashboard_id) VALUES ('GEN_6283b5acd','Lead Status','vertical_bar',NULL,NULL,NULL,'{"chart": {"type": "column"}, "title": {"text": "Lead Status"}, "xAxis": {"title": {"text": "Status"}, "categories": ["Closed", "New", "Converted", "Qualified", "Contacted", "null", "Visited"]}, "yAxis": {"min": 0, "title": {"text": "Row Count"}}, "series": [{"data": [21, 19, 17, 17, 15, 5, 1], "name": "Row Count", "dataLabels": {"enabled": false}}]}',NULL,NOW(),NULL,NULL,'GEN_13b0dbeb3','{"value": "row_count", "x_axis": ["status"], "y_axis": "row_count", "sort_by": [{"field": "row_count", "order": "desc"}], "color_by": "status", "sliced_by": "status", "display_as": "vertical_bar", "show_values": false, "widget_name": "Lead Status", "table_groups": [], "display_units": "full_number", "table_columns": ["status"], "max_groups_displayed": "100"}',NULL,NULL);
+-- INSERT INTO dashboard_component(id,name,type,data_source,filters,metric_config,chart_config,geometry,created_date,filter_logic,chart_data,report_id,widget_settings,listview_id,dashboard_id) VALUES ('GEN_2e2c9f3ca','Invoice Status','vertical_bar',NULL,NULL,NULL,'{"chart": {"type": "column"}, "title": {"text": "Invoice Status"}, "xAxis": {"title": {"text": "Status"}, "categories": ["paid", "partially paid", "overdue", "unpaid", "cancelled", "follow up", "completed", "refunded", "pending", "processing"]}, "yAxis": {"min": 0, "title": {"text": "Row Count"}}, "series": [{"data": [16, 15, 15, 18, 16, 14, 13, 14, 18, 13], "name": "Row Count", "dataLabels": {"enabled": false}}]}',NULL,NOW(),NULL,NULL,'GEN_e681044cc','{"value": "row_count", "x_axis": ["status"], "y_axis": "row_count", "sort_by": [], "color_by": "status", "sliced_by": "status", "display_as": "vertical_bar", "show_values": false, "widget_name": "Invoice Status", "table_groups": [], "display_units": "full_number", "table_columns": ["status"], "max_groups_displayed": 100}',NULL,NULL);
+-- INSERT INTO dashboard_component(id,name,type,data_source,filters,metric_config,chart_config,geometry,created_date,filter_logic,chart_data,report_id,widget_settings,listview_id,dashboard_id) VALUES ('GEN_1beb2d2f2','Accounts Rating','donut',NULL,NULL,NULL,'{"chart": {"type": "pie"}, "title": {"text": "Accounts Rating"}, "series": [{"data": [{"y": 11, "name": "A"}, {"y": 13, "name": "B"}, {"y": 9, "name": "C"}, {"y": 17, "name": "D"}], "name": "Row Count"}], "plotOptions": {"pie": {"states": {"hover": {"halo": {"size": 0}, "enabled": true}}, "innerSize": "50%"}}}',NULL,NOW(),NULL,NULL,'GEN_ba2dabee5','{"value": "row_count", "x_axis": ["rating"], "y_axis": "row_count", "sort_by": [], "color_by": "rating", "sliced_by": "rating", "display_as": "donut", "show_values": false, "widget_name": "Accounts Rating", "table_groups": [], "display_units": "full_number", "table_columns": ["rating"], "max_groups_displayed": 100}',NULL,NULL);
+-- INSERT INTO dashboard_component(id,name,type,data_source,filters,metric_config,chart_config,geometry,created_date,filter_logic,chart_data,report_id,widget_settings,listview_id,dashboard_id) VALUES ('GEN_7d10b92b3','Rating of Accounts','funnel',NULL,NULL,NULL,'{"chart": {"type": "funnel"}, "title": {"text": "Rating of Accounts"}, "series": [{"data": [{"y": 17, "name": "D"}, {"y": 13, "name": "B"}, {"y": 11, "name": "A"}, {"y": 9, "name": "C"}], "name": "Row Count"}]}',NULL,NOW(),NULL,NULL,'GEN_ba2dabee5','{"value": "row_count", "x_axis": ["rating"], "y_axis": "row_count", "sort_by": [{"field": "row_count", "order": "asc"}], "color_by": "rating", "sliced_by": "rating", "display_as": "funnel", "show_values": true, "widget_name": "Rating of Accounts", "table_groups": [], "display_units": "full_number", "table_columns": ["rating"], "max_groups_displayed": 100}',NULL,NULL);
+-- INSERT INTO dashboard_component(id,name,type,data_source,filters,metric_config,chart_config,geometry,created_date,filter_logic,chart_data,report_id,widget_settings,listview_id,dashboard_id) VALUES ('GEN_d56d16eb7','Billing Status','horizontal_bar',NULL,NULL,NULL,'{"chart": {"type": "bar"}, "title": {"text": "Billing Status"}, "xAxis": {"title": {"text": "Status"}, "categories": ["paid", "partially paid", "overdue", "unpaid", "cancelled", "follow up", "completed", "refunded", "pending", "processing"]}, "yAxis": {"min": 0, "title": {"text": "Row Count"}}, "series": [{"data": [16, 15, 15, 18, 16, 14, 13, 14, 18, 13], "name": "Row Count", "dataLabels": {"enabled": false}}]}',NULL,NOW(),NULL,NULL,'GEN_e681044cc','{"value": "row_count", "x_axis": ["status"], "y_axis": "row_count", "sort_by": [], "color_by": "status", "sliced_by": "status", "display_as": "horizontal_bar", "show_values": false, "widget_name": "Billing Status", "table_groups": [], "display_units": "full_number", "table_columns": ["status"], "max_groups_displayed": 100}',NULL,NULL);
+-- INSERT INTO dashboard_component(id,name,type,data_source,filters,metric_config,chart_config,geometry,created_date,filter_logic,chart_data,report_id,widget_settings,listview_id,dashboard_id) VALUES ('GEN_7637e43dd','Top 15 Product Sold in Units','donut',NULL,NULL,NULL,'{"chart": {"type": "pie"}, "title": {"text": "Top 15 Product Sold in Units"}, "series": [{"data": [{"y": 1499, "name": "Raspberry Tart"}, {"y": 1453, "name": "Rechargeable Laptop Battery Pack"}, {"y": 1247, "name": "Harvest Grain Salad"}, {"y": 1182, "name": "Electric Fondue Pot"}, {"y": 1071, "name": "Bamboo Memory Foam Pillow"}, {"y": 1040, "name": "Sweet Potato Fries"}, {"y": 1010, "name": "Collapsible Colander"}, {"y": 1003, "name": "Caramel Apple Taffy"}, {"y": 968, "name": "Smart Home Security Camera"}, {"y": 950, "name": "Cushion Covers"}, {"y": 941, "name": "Herb Garden Planter Box"}, {"y": 898, "name": "Californian Raisins"}, {"y": 877, "name": "High-Speed Blender"}, {"y": 876, "name": "Mediterranean Couscous Salad"}, {"y": 859, "name": "Portable Camping Shower"}], "name": "Sum Quantity"}], "plotOptions": {"pie": {"states": {"hover": {"halo": {"size": 0}, "enabled": true}}, "innerSize": "50%"}}}',NULL,NOW(),NULL,NULL,'GEN_f85ec85e5','{"value": "sum_quantity", "x_axis": ["product_name"], "y_axis": "sum_total_amount", "sort_by": [{"field": "sum_quantity", "order": "asc"}], "color_by": "product_name", "sliced_by": "product_name", "display_as": "donut", "show_values": false, "widget_name": "Top 15 Product Sold in Units", "table_groups": [], "display_units": "full_number", "table_columns": ["product_name"], "max_groups_displayed": "15"}',NULL,NULL);
+-- INSERT INTO dashboard_component(id,name,type,data_source,filters,metric_config,chart_config,geometry,created_date,filter_logic,chart_data,report_id,widget_settings,listview_id,dashboard_id) VALUES ('GEN_3c297ebd8','Stores VS Sales','vertical_bar',NULL,NULL,NULL,'{"chart": {"type": "column"}, "title": {"text": "Stores VS Sales"}, "xAxis": {"title": {"text": "Store"}, "categories": ["QuickQuench", "QuickMart", "MarketSaver", "QuickSaver", "BudgetMart", "DiscountDepot", "ShopWise", "SuperMart", "SavingsGalaxy", "BargainBay", "DealZone", "MegaBuy", "ShopSmart", "ThriftyThrifts", "BargainBuys"]}, "yAxis": {"min": 0, "title": {"text": "Sum Tax Amount"}}, "series": [{"data": [153167.31, 159084.02, 161003.96, 161751.08, 162869.8, 165076.38, 177944.53, 180195.83, 184185.16, 184601.31, 185390.46, 185481.56, 189019.47, 189511.13, 190786.2], "name": "Sum Tax Amount", "dataLabels": {"enabled": false}}]}',NULL,NOW(),NULL,NULL,'GEN_a7adc8fc9','{"value": "sum_tax_amount", "x_axis": ["store"], "y_axis": "sum_tax_amount", "sort_by": [{"field": "sum_tax_amount", "order": "asc"}], "color_by": "store", "sliced_by": "store", "display_as": "vertical_bar", "show_values": false, "widget_name": "Stores VS Sales", "table_groups": [], "display_units": "full_number", "table_columns": ["store"], "max_groups_displayed": "15"}',NULL,NULL);
+
+
+-- INSERT INTO page_builder(id, name, description, layout, created_by_id, last_modified_by_id, owner_id)
+-- VALUES (
+--     'pB_b145e4bdc',
+--     'Sales Page',
+--     'Page for sales-related components',
+--     '{
+--         "totalGrids": 6,
+--         "canvasSettings": {}
+--     }',
+--     'USER_ID',
+--     'USER_ID',
+--     'USER_ID'
+-- );
+
+
+-- INSERT INTO page_component (
+--     id, name, type, data_source, listview_id, page_builder_id, 
+--     filters, metric_config, chart_config, geometry, 
+--     created_by_id, last_modified_by_id, owner_id, created_date, 
+--     last_modified_date, is_deleted, organisation, dashboard_component_id
+-- ) VALUES
+--     ('GEN_73940bcc4', 'Top 15 Product Sold in Units', 'dashboard', 'Sales Dashboard', 'Top 15 Product Sold in Units', 'pB_b145e4bdc', NULL, NULL, NULL, '{"h": 450, "w": 700, "x": 500, "y": 0}', 'USER_ID', 'USER_ID', 'USER_ID', NOW(), NOW(), FALSE, NULL, 'GEN_7637e43dd'),
+--     ('GEN_55b7b3e26', 'Rating of Accounts', 'dashboard', 'Sales Dashboard', 'Rating of Accounts', 'pB_b145e4bdc', NULL, NULL, NULL, '{"h": 400, "w": 700, "x": 500, "y": 450}', 'USER_ID', 'USER_ID', 'USER_ID', NOW(), NOW(), FALSE, NULL, 'GEN_7d10b92b3'),
+--     ('GEN_788beb827', 'Billing Status', 'dashboard', 'Sales Dashboard', 'Billing Status', 'pB_b145e4bdc', NULL, NULL, NULL, '{"h": 400, "w": 500, "x": 0, "y": 0}', 'USER_ID', 'USER_ID', 'USER_ID', NOW(), NOW(), FALSE, NULL, 'GEN_d56d16eb7'),
+--     ('GEN_dace92930', 'Stores VS Sales', 'dashboard', 'Sales Dashboard', 'Stores VS Sales', 'pB_b145e4bdc', NULL, NULL, NULL, '{"h": 400, "w": 700, "x": 500, "y": 850}', 'USER_ID', 'USER_ID', 'USER_ID', NOW(), NOW(), FALSE, NULL, 'GEN_3c297ebd8'),
+--     ('GEN_272fd7d86', 'Lead Status', 'dashboard', 'Sales Dashboard', 'Lead Status', 'pB_b145e4bdc', NULL, NULL, NULL, '{"h": 400, "w": 500, "x": 0, "y": 600}', 'USER_ID', 'USER_ID', 'USER_ID', NOW(), NOW(), FALSE, NULL, 'GEN_6283b5acd'),
+--     ('GEN_5c3e2f4d1', 'Total Revenue', 'dashboard', 'Sales Dashboard', 'Total Revenue', 'pB_b145e4bdc', NULL, NULL, NULL, '{"h": 200, "w": 500, "x": 0, "y": 400}', 'USER_ID', 'USER_ID', 'USER_ID', NOW(), NOW(), FALSE, NULL, 'GEN_3c3dd16b8');
+
+
+-- INSERT INTO homepage_assignment(profile_id, page_id) VALUES
+--     ('PROFILE_ID', 'pB_b145e4bdc');

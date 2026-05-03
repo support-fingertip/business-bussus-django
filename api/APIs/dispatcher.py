@@ -1,0 +1,155 @@
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from authentication.custom_jwt_auth import CustomJWTAuthentication
+from api.BL.blcontroller import BusinessLogicHandler
+from public.auth.session import get_connection_and_user_details
+from public.utils.exists import error_record
+from ..notifications.notify import get_admin, trigger_notication
+from channels.layers import get_channel_layer
+
+class Dispatcher(APIView):
+    authentication_classes = [CustomJWTAuthentication]  # Custom JWT Authentication
+    # permission_classes = [IsAuthenticated]
+
+    def __init__(self, **kwargs):
+        self.channel = get_channel_layer()
+
+    def _init_request_context(self, request):
+        """Attach browser and user/org details into request"""
+        user_agent = request.META.get("HTTP_USER_AGENT", "").lower()
+        request.request_from_browser = any(
+            browser in user_agent for browser in ["mozilla", "chrome", "safari", "edge"]
+        )            
+        # Get connection and user details
+        user, org, connection, profile_id, schema, referer = get_connection_and_user_details(request)
+        
+        # Attach user-related details to the request
+        request.user_ = user
+        if request.user_ and not request.user_.get("is_active", True):
+            raise PermissionError("User account is inactive.")
+        request.org = org
+        request.connection = connection
+        request.profile_id = profile_id
+        request.schema = schema
+        request.referer = referer
+
+    def _init_handler(self, request, object_name):
+        """Initialize BL handler after context is set"""
+        self._init_request_context(request)
+        return BusinessLogicHandler(request, object_name)
+
+    # Send notification to admin
+    def generate_notication(self, request, **kwargs):
+        another_object = kwargs.get("another_object")
+        user_id = kwargs.get("user_", {}).get("id")
+        adminid = get_admin(user_id)
+        trigger_notication(
+            owner_id=adminid,
+            channel_layer=self.channel,
+            title=another_object,
+            notification_type="alert",
+            user_id=user_id,
+            channel="push",
+            request=request,
+            **kwargs
+        )
+
+    def get(self, request, object_name, another_object=None, param3=None):
+        try:
+            handler = self._init_handler(request, object_name)
+            result = handler.get_business_logic(
+                object_name=another_object,
+                param3=param3,
+                browser=request.request_from_browser,
+                user_=request.user_,
+                connection=request.connection,
+                profile_id=request.profile_id,
+                org=request.org,
+                schema=request.schema,
+            )
+            return Response(data=result, status=200)
+        except PermissionError as e:
+            return Response({"message": str(e)}, status=403)
+        except Exception as e:
+            error_record(er=e)
+            return Response({"message": str(e)}, status=500)
+
+    def post(self, request, object_name, another_object=None, param3=None):
+        data = request.data
+        try:
+            handler = self._init_handler(request, object_name)
+            result = handler.post_business_logic(
+                data,
+                another_object=another_object,
+                param3=param3,
+                browser=request.request_from_browser,
+                user_=request.user_,
+                connection=request.connection,
+                profile_id=request.profile_id,
+                org=request.org,
+                schema=request.schema,
+                referer=request.referer
+            )
+            if isinstance(result, dict) and result.get("status") == "error" and result.get("success") == False:
+                return Response(data=result, status=400)
+            # if result.get("success") == True:
+            #     self.generate_notication(
+            #         another_object=another_object or object_name,
+            #         user_=request.user_,
+            #         request=request,
+            #         message=f"New {another_object or object_name} created",
+            #         data=result.get("data", []) if object_name != "setup" else result
+            #     )
+            return Response(data=result, status=201)
+        except PermissionError as e:
+            return Response({"message": str(e)}, status=403)
+        except Exception as e:
+            error_record(er=e)
+            return Response({"message": str(e)}, status=500)
+
+    def patch(self, request, object_name, another_object=None, param3=None):
+        data = request.data
+        try:
+            handler = self._init_handler(request, object_name)
+            result = handler.patch_business_logic(
+                data,
+                another_object=another_object,
+                param3=param3,
+                browser=request.request_from_browser,
+                user_=request.user_,
+                connection=request.connection,
+                profile_id=request.profile_id,
+                org=request.org,
+                schema=request.schema,
+            )
+            if isinstance(result, dict) and result.get("success") == False:
+                return Response(data=result, status=400)
+            return Response(data=result, status=200)
+        except PermissionError as e:
+            return Response({"message": str(e)}, status=403)
+        except Exception as e:
+            error_record(er=e)
+            return Response({"message": str(e)}, status=500)
+
+    def delete(self, request, object_name, another_object=None, param3=None):
+        data = request.data
+        try:
+            handler = self._init_handler(request, object_name)
+            result = handler.delete_business_logic(
+                data,
+                another_object=another_object,
+                param3=param3,
+                browser=request.request_from_browser,
+                user_=request.user_,
+                connection=request.connection,
+                profile_id=request.profile_id,
+                org=request.org,
+                schema=request.schema,
+            )
+            return Response(data=result, status=200)
+        except PermissionError as e:
+            return Response({"message": str(e)}, status=403)
+        except Exception as e:
+            error_record(er=e)
+            return Response({"message": str(e)}, status=500)

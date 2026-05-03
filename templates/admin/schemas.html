@@ -1,0 +1,65 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">Home</a>
+    &rsaquo; Database schemas
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+  <h1>Database schemas</h1>
+
+  <div style="display:flex; gap:24px; align-items:flex-start;">
+    <div style="flex: 0 0 320px;">
+      <h2>Schemas ({{ schemas|length }})</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Tables</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in schemas %}
+            <tr {% if s.name == selected_schema %}style="background: rgba(100,150,200,0.15);"{% endif %}>
+              <td><a href="?schema={{ s.name }}">{{ s.name }}</a></td>
+              <td>{{ s.table_count }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="2"><em>No schemas found.</em></td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div style="flex: 1 1 auto;">
+      {% if selected_schema %}
+        <h2>Tables in <code>{{ selected_schema }}</code> ({{ tables|length }})</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Table</th>
+              <th>Estimated rows</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in tables %}
+              <tr>
+                <td>{{ t.name }}</td>
+                <td>{{ t.row_estimate }}</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="2"><em>No tables in this schema.</em></td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p><em>Select a schema on the left to see its tables.</em></p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
