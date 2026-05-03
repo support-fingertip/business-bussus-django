@@ -198,6 +198,12 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # Tenant-schema middleware runs `process_view`, so it executes AFTER
+    # the dispatcher's _init_request_context has called pin_request_tenant
+    # and request.tenant_schema is populated. It then `SET search_path`
+    # so subsequent Django ORM queries (Profile.objects.get(...) etc.)
+    # automatically scope to the right tenant.
+    'api.security.tenant_schema_middleware.TenantSchemaMiddleware',
     # Statement-timeout LAST in the chain so it sees the resolved URL
     # (CommonMiddleware's append-slash redirect runs first) and the
     # timeout only applies to the actual view handling.
