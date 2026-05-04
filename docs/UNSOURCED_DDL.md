@@ -1,17 +1,18 @@
 # Tables with DDL outside source control
 
-A few per-tenant tables are queried by the running platform but have
-no `CREATE TABLE` in any of the canonical DDL files (`default_tables.sql`,
-`tables.sql`, `public/utils/organisation.py`, or any app's
-`models.py`). They presumably exist in production tenants because of:
+A few platform tables are queried by the running platform but, before
+Phase 4.A, had no `CREATE TABLE` in any of the canonical DDL files
+(`default_tables.sql`, `tables.sql`, `public/utils/organisation.py`,
+or any app's `models.py`). They presumably exist in production
+tenants because of:
 
 - Manual DDL applied during initial deployment
 - Earlier migration files that have since been cleaned up
 - A provisioning step we haven't found
 
-This file tracks what we know so an operator can reconcile.
+This file tracks the historic state and the resolution.
 
-## `lead_capture`
+## ✅ `lead_capture` — RESOLVED in Phase 4.A
 
 **Queried at:** `facebook/leadwebhook.py:159`
 
@@ -22,57 +23,81 @@ WHERE lead_form_id = %s
 LIMIT 1
 ```
 
-**Inferred column shape (minimum):**
-- `lead_form_id` — Facebook lead form id (PK or unique?)
-- `page_access_token` — long-lived FB page token
-- `field_mapping` — JSON or text mapping from FB form fields to our object fields
-- `created_by_id` — FK to public.users
+**Original status:** No `CREATE TABLE` block anywhere; queried
+against the `public` schema as a SHARED table (see
+`api/ORM/sqlFunctions/getQueryBuilder.py:SHARED_TABLES`).
 
-**Operator action:** introspect a production tenant to capture the
-canonical schema, add a `CREATE TABLE lead_capture (...)` block to
-`default_tables.sql`, and check this entry off.
+**Phase 4.A resolution:**
+- Canonical DDL added to **`sqlfiles/shared_tables.sql`** (NOT
+  `default_tables.sql` — `lead_capture` is shared/public, not
+  per-tenant). Column shape inferred from
+  `files/fields_inserts_no_id.sql:2206-2284` (the field registry —
+  the strongest evidence we have for the canonical column list).
+- `LeadCapture` Django model added in
+  `api/tenant_models/shared.py` with `managed = False` so the ORM
+  knows the table without trying to own its DDL.
+- Migration `0009_phase4a_lead_capture.py` registers the model in
+  Django state (state-only — no DDL run).
+
+**Operator action remains:** before applying the new DDL to a
+production public schema that already has a `lead_capture` table,
+introspect the existing shape and reconcile any drift. The
+canonical file is the *target*; production is *authoritative*. If
+they disagree, update the canonical file.
 
 ```sql
--- On a production tenant:
-SET search_path TO <tenant_schema>;
+-- On production:
+SET search_path TO public;
 \d lead_capture
--- Copy the resulting column list into default_tables.sql.
+-- Compare to sqlfiles/shared_tables.sql.
 ```
 
-## `org_company`
+## ✅ `org_company` — RESOLVED in Phase 4.A
 
-**Status:** **DDL is broken in source control.** The
+**Original status:** **DDL was broken in source control.** The
 `CREATE TABLE IF NOT EXISTS org_company (...)` block in
-`default_tables.sql` (around line 980) has every column line
-commented out — including the closing `);`. The end result is that
-either the statement is malformed and silently skipped, or it
-attempts to create an empty-column table which Postgres rejects.
+`default_tables.sql` (around line 980) had every column line
+commented out — including the closing `);`. The end result was that
+either the statement was malformed and silently skipped, or it
+attempted to create an empty-column table which Postgres rejected.
 
-**Effect:** the `org_company` table does NOT exist in newly-
-provisioned tenants. Any code that tries to query it will fail with
-`relation "org_company" does not exist`.
+The `org_company` table did NOT exist in newly-provisioned tenants.
 
-**Why this matters for the Phase 3.B model wave:**
-The `org_company` registry row was added during the Phase 2 ORM
-Wave 2 cleanup (we added it because `default_tables.sql` *appeared*
-to define it). Phase 3.B leaves it OUT of `api/tenant_models/misc.py`
-because there's no actual table to query. Operator action:
+**Phase 4.A resolution:**
+- DDL block in `default_tables.sql` un-commented (the column shape
+  was always complete — every line was just `--`-prefixed).
+- `OrgCompany` Django model added to
+  `api/tenant_models/misc.py` with `managed = False`.
+- Migration `0008_phase4a_org_company.py` registers the model in
+  Django state.
+- No code currently queries `org_company` — adding the model is
+  purely defensive (newly-provisioned tenants will get the table;
+  existing tenants are unaffected).
 
-  1. Decide whether `org_company` is a needed feature.
-     - If yes: uncomment the DDL in `default_tables.sql`, run a
-       per-tenant `CREATE TABLE IF NOT EXISTS` migration, then add
-       the `OrgCompany` model in a follow-up.
-     - If no: delete the registry row (`DELETE FROM object WHERE name
-       = 'org_company';`) and the commented DDL block.
+**Operator action:** for each existing tenant, decide whether to
+apply the un-commented DDL retroactively. If yes, run a
+per-tenant `CREATE TABLE IF NOT EXISTS` migration using the block
+from `default_tables.sql:993-1023`. If no, leave existing tenants
+alone — the model has `managed = False` so Django won't complain.
 
 ## Why we left these alone for Phase 2/3
 
-The Phase 2 risk-mitigation work added the `lead_capture` row to the
-registry (so the dispatcher whitelist accepts it) but **did not** add
-DDL — adding DDL without knowing the canonical column shape risks
-shadowing the real table next time a tenant is provisioned. Same
-reasoning for `org_company`.
+The Phase 2 risk-mitigation work added the `lead_capture` row to
+the registry (so the dispatcher whitelist accepts it) but **did
+not** add DDL — adding DDL without knowing the canonical column
+shape risked shadowing the real table next time a tenant was
+provisioned. Same reasoning for `org_company` (we didn't know if
+the broken-DDL block reflected the real shape or stale code).
 
-Phase 4's "DDL reconciliation" wave will dump every tenant's
-`information_schema.columns`, find the consensus shape, and bring the
-canonical DDL into source control.
+Phase 4.A took both items on after the broader registry work was
+complete and we had stronger evidence for both shapes (the field
+registry insert blocks for `lead_capture`, the complete-but-
+commented DDL for `org_company`).
+
+## What's next: tenant introspection
+
+The Phase 4.A operator tool `scripts/ddl_introspection.py` dumps
+`information_schema.columns` per tenant and reports drift between
+production and the canonical DDL. Run it before / after any
+phased rollout to catch tables where the canonical files diverged
+from the on-disk truth.

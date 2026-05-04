@@ -85,11 +85,13 @@ EXPECTED_DB_TABLES = {
     "AuditTrailTrack": "audit_trail_track",
     "FieldHistoryLog": "field_history_log",
     "FieldTrackingConfig": "field_tracking_config",
-    # Phase 3.B Wave 8 — misc (org_company intentionally excluded;
-    # its DDL in default_tables.sql is fully commented out)
+    # Phase 3.B Wave 8 — misc
     "Task": "task",
     "Notification": "notifications",
     "SharedRecord": "shared_records",
+    # Phase 4.A — org_company added after the previously-broken DDL
+    # block was un-commented in default_tables.sql.
+    "OrgCompany": "org_company",
 }
 
 

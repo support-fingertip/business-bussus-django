@@ -66,6 +66,9 @@ from api.tenant_models import (  # noqa: F401  (re-exported for app discovery)
     Task,
     Notification,
     SharedRecord,
+    # Phase 4.A — misc + shared
+    OrgCompany,
+    LeadCapture,
 )
 
 def organization_logo_path(instance, filename):

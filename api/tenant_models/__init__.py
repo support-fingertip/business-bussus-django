@@ -92,12 +92,16 @@ from api.tenant_models.audit import (
     FieldTrackingConfig,
 )
 
-# Phase 3.B — misc
+# Phase 3.B — misc (+ Phase 4.A: OrgCompany)
 from api.tenant_models.misc import (
     Task,
     Notification,
     SharedRecord,
+    OrgCompany,
 )
+
+# Phase 4.A — shared-schema models (live in `public`, not per-tenant)
+from api.tenant_models.shared import LeadCapture
 
 
 __all__ = [
@@ -155,8 +159,11 @@ __all__ = [
     "AuditTrailTrack",
     "FieldHistoryLog",
     "FieldTrackingConfig",
-    # Wave 8 — misc (Phase 3.B)
+    # Wave 8 — misc (Phase 3.B + Phase 4.A: OrgCompany)
     "Task",
     "Notification",
     "SharedRecord",
+    "OrgCompany",
+    # Phase 4.A — shared-schema models
+    "LeadCapture",
 ]
