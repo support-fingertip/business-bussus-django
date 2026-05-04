@@ -42,6 +42,7 @@ from django.utils.html import strip_tags
 
 from api.ORM.sqlFunctions.createSQLFunction import post_data_sql
 from api.emailsend.views import send_test_email
+from api.permissions._orm_dispatch import dispatch as _dispatch_path
 from api.security.schema_authority import get_validated_schema
 from api.workflows.create_records import create_record
 from api.workflows.update_records import update_record
@@ -107,12 +108,25 @@ def _restore_search_path(previous: Optional[str]) -> None:
                 logger.warning("Skipping untrusted schema segment during search_path restore: %r", part)
     if not validated:
         return
+    # SET search_path doesn't accept array parameters, so we have to
+    # compose the statement. Each segment was validated_identifier-checked
+    # above; we now wrap each in psycopg2.sql.Identifier so the safe-SQL
+    # pre-commit hook accepts the construct (no f-string interpolation
+    # of identifiers).
+    from psycopg2 import sql as _sql
+    parts_sql = []
+    for part in validated:
+        if part == "$user":
+            # `$user` is a PostgreSQL pseudo-identifier; sql.Identifier
+            # would quote it as `"$user"` which Postgres rejects.
+            parts_sql.append(_sql.SQL("\"$user\""))
+        else:
+            parts_sql.append(_sql.Identifier(part))
+    stmt = _sql.SQL("SET search_path TO {}").format(
+        _sql.SQL(", ").join(parts_sql)
+    )
     with connection.cursor() as cursor:
-        # psycopg2 will parameterise each value; join them back with a comma literal
-        # We rebuild a safe comma-separated string since SET search_path does not
-        # accept an array param.  Each segment was validated above.
-        safe_path = ", ".join(validated)
-        cursor.execute(f"SET search_path TO {safe_path}")  # noqa: S608 — segments validated
+        cursor.execute(stmt)
 
 
 def execute_workflows(obj: Dict[str, Any], module: str, trigger: str, **kwargs) -> Optional[Dict]:
@@ -131,14 +145,32 @@ def execute_workflows(obj: Dict[str, Any], module: str, trigger: str, **kwargs) 
         module, obj.get('id'), trigger
     )
 
-    workflow_query = """
-        SELECT id, name FROM workflow
-        WHERE trigger_type = %s AND module_name = %s
-    """
     try:
-        with connection.cursor() as cursor:
-            cursor.execute(workflow_query, [trigger, module])
-            workflows = cursor.fetchall()
+        # Phase 3.C: dual-path. Same return shape (list of (id, name) tuples)
+        # so the caller code below is path-agnostic.
+        def _workflows_raw():
+            workflow_query = (
+                "SELECT id, name FROM workflow "
+                "WHERE trigger_type = %s AND module_name = %s"
+            )
+            with connection.cursor() as cursor:
+                cursor.execute(workflow_query, [trigger, module])
+                return cursor.fetchall()
+
+        def _workflows_orm():
+            from api.tenant_models import Workflow
+            return list(
+                Workflow.objects.filter(
+                    trigger_type=trigger, module_name=module
+                ).values_list("id", "name")
+            )
+
+        workflows = _dispatch_path(
+            "workflow_executor.list_workflows",
+            raw_impl=_workflows_raw,
+            orm_impl=_workflows_orm,
+            flag="USE_ORM_FOR_BL",
+        )
 
         logger.info("Found %d workflows for module '%s' and trigger %s", len(workflows), module, trigger)
 
@@ -147,13 +179,34 @@ def execute_workflows(obj: Dict[str, Any], module: str, trigger: str, **kwargs) 
             workflow_name = workflow[1]
             logger.info("Processing workflow: %s (ID: %s)", workflow_name, workflow_id)
 
-            start_node_query = """
-                SELECT id, label, node_type, data FROM workflow_node
-                WHERE workflow_id = %s AND node_type = 'Start'
-            """
-            with connection.cursor() as cursor:
-                cursor.execute(start_node_query, [workflow_id])
-                start_node = cursor.fetchone()
+            # Phase 3.C: dual-path Start-node lookup. Same return shape
+            # (id, label, node_type, data) so downstream tuple-unpacking
+            # works for either path.
+            def _start_node_raw(_wid=workflow_id):
+                start_node_query = (
+                    "SELECT id, label, node_type, data FROM workflow_node "
+                    "WHERE workflow_id = %s AND node_type = 'Start'"
+                )
+                with connection.cursor() as cursor:
+                    cursor.execute(start_node_query, [_wid])
+                    return cursor.fetchone()
+
+            def _start_node_orm(_wid=workflow_id):
+                from api.tenant_models import WorkflowNode
+                return (
+                    WorkflowNode.objects.filter(
+                        workflow_id=_wid, node_type="Start"
+                    )
+                    .values_list("id", "label", "node_type", "data")
+                    .first()
+                )
+
+            start_node = _dispatch_path(
+                "workflow_executor.start_node",
+                raw_impl=_start_node_raw,
+                orm_impl=_start_node_orm,
+                flag="USE_ORM_FOR_BL",
+            )
 
             if not start_node:
                 logger.warning("No Start node found for workflow %s. Skipping.", workflow_name)
@@ -292,12 +345,26 @@ def traverse_node(
 # ---------------------------------------------------------------------------
 
 def _fetch_edges(source_id: Any) -> List[Tuple]:
-    with connection.cursor() as cursor:
-        cursor.execute(
-            "SELECT id, target_id FROM workflow_edge WHERE source_id = %s",
-            [source_id]
+    """All edges leaving a node. Dual-path (raw / WorkflowEdge ORM)."""
+    def _raw():
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT id, target_id FROM workflow_edge WHERE source_id = %s",
+                [source_id]
+            )
+            return cursor.fetchall()
+
+    def _orm():
+        from api.tenant_models import WorkflowEdge
+        return list(
+            WorkflowEdge.objects.filter(source_id=source_id)
+            .values_list("id", "target_id")
         )
-        return cursor.fetchall()
+
+    return _dispatch_path(
+        "workflow_executor._fetch_edges",
+        raw_impl=_raw, orm_impl=_orm, flag="USE_ORM_FOR_BL",
+    )
 
 
 def _fetch_edge_by_handle(source_id: Any, handle: Optional[str]) -> Optional[Tuple]:
@@ -306,15 +373,15 @@ def _fetch_edge_by_handle(source_id: Any, handle: Optional[str]) -> Optional[Tup
     handle=None  → match IS NULL  (the 'yes' / default path)
     handle='no'  → match = 'no'
     """
-    if handle is None:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                "SELECT id, target_id FROM workflow_edge "
-                "WHERE source_id = %s AND source_handle IS NULL LIMIT 1",
-                [source_id]
-            )
-            return cursor.fetchone()
-    else:
+    def _raw():
+        if handle is None:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT id, target_id FROM workflow_edge "
+                    "WHERE source_id = %s AND source_handle IS NULL LIMIT 1",
+                    [source_id]
+                )
+                return cursor.fetchone()
         with connection.cursor() as cursor:
             cursor.execute(
                 "SELECT id, target_id FROM workflow_edge "
@@ -323,14 +390,41 @@ def _fetch_edge_by_handle(source_id: Any, handle: Optional[str]) -> Optional[Tup
             )
             return cursor.fetchone()
 
+    def _orm():
+        from api.tenant_models import WorkflowEdge
+        qs = WorkflowEdge.objects.filter(source_id=source_id)
+        qs = qs.filter(source_handle__isnull=True) if handle is None \
+            else qs.filter(source_handle=handle)
+        return qs.values_list("id", "target_id").first()
+
+    return _dispatch_path(
+        "workflow_executor._fetch_edge_by_handle",
+        raw_impl=_raw, orm_impl=_orm, flag="USE_ORM_FOR_BL",
+    )
+
 
 def _fetch_node(node_id: Any) -> Optional[Tuple]:
-    with connection.cursor() as cursor:
-        cursor.execute(
-            "SELECT id, label, node_type, data FROM workflow_node WHERE id = %s",
-            [node_id]
+    """Fetch a workflow node by id. Same return shape both paths."""
+    def _raw():
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT id, label, node_type, data FROM workflow_node WHERE id = %s",
+                [node_id]
+            )
+            return cursor.fetchone()
+
+    def _orm():
+        from api.tenant_models import WorkflowNode
+        return (
+            WorkflowNode.objects.filter(id=node_id)
+            .values_list("id", "label", "node_type", "data")
+            .first()
         )
-        return cursor.fetchone()
+
+    return _dispatch_path(
+        "workflow_executor._fetch_node",
+        raw_impl=_raw, orm_impl=_orm, flag="USE_ORM_FOR_BL",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -492,13 +586,28 @@ def execute_send_mail(
         logger.warning("No email template specified in action configuration.")
         return None
 
-    with connection.cursor() as cursor:
-        cursor.execute(
-            # FIX BUG-07: select only the columns we need, by name
-            "SELECT template_type, subject, body FROM email_templates WHERE name = %s",
-            [template_name]
+    # Phase 3.C: dual-path. EmailTemplate is in Wave 5 (api/tenant_models/workflow.py).
+    def _template_raw():
+        with connection.cursor() as cursor:
+            cursor.execute(
+                # FIX BUG-07: select only the columns we need, by name
+                "SELECT template_type, subject, body FROM email_templates WHERE name = %s",
+                [template_name]
+            )
+            return cursor.fetchone()
+
+    def _template_orm():
+        from api.tenant_models import EmailTemplate
+        return (
+            EmailTemplate.objects.filter(name=template_name)
+            .values_list("template_type", "subject", "body")
+            .first()
         )
-        row = cursor.fetchone()
+
+    row = _dispatch_path(
+        "workflow_executor.email_template_lookup",
+        raw_impl=_template_raw, orm_impl=_template_orm, flag="USE_ORM_FOR_BL",
+    )
 
     if not row:
         logger.warning("Email template '%s' not found.", template_name)
@@ -535,27 +644,44 @@ def _resolve_user_ids(user_type: str, users: List[str]) -> List[str]:
         return users
 
     if user_type == "profile":
-        placeholders = ", ".join(["%s"] * len(users))
         with connection.cursor() as cursor:
             cursor.execute(
-                f"SELECT id FROM users WHERE profile_id IN ({placeholders}) AND is_active = true",
-                users,
+                "SELECT id FROM users WHERE profile_id = ANY(%s) AND is_active = true",
+                [list(users)],
             )
             return [row[0] for row in cursor.fetchall()]
 
     if user_type == "group":
-        # Recursively collect all group IDs (including sub-groups)
+        # Recursively collect all group IDs (including sub-groups).
+        # Phase 3.C: dual-path. UserGroupPublicGroup is in Wave 2
+        # follow-up (api/tenant_models/authz.py).
         all_group_ids = set(users)
         queue = list(users)
         while queue:
-            placeholders = ", ".join(["%s"] * len(queue))
-            with connection.cursor() as cursor:
-                cursor.execute(
-                    f"SELECT public_group_id FROM user_group_public_groups "
-                    f"WHERE user_group_id IN ({placeholders})",
-                    queue,
+            current_queue = list(queue)
+
+            def _sub_groups_raw(_q=current_queue):
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        "SELECT public_group_id FROM user_group_public_groups "
+                        "WHERE user_group_id = ANY(%s)",
+                        [list(_q)],
+                    )
+                    return [row[0] for row in cursor.fetchall()]
+
+            def _sub_groups_orm(_q=current_queue):
+                from api.tenant_models import UserGroupPublicGroup
+                return list(
+                    UserGroupPublicGroup.objects.filter(
+                        user_group_id__in=_q
+                    ).values_list("public_group_id", flat=True)
                 )
-                sub_groups = [row[0] for row in cursor.fetchall()]
+
+            sub_groups = _dispatch_path(
+                "workflow_executor.resolve_user_groups.sub_groups",
+                raw_impl=_sub_groups_raw, orm_impl=_sub_groups_orm,
+                flag="USE_ORM_FOR_BL",
+            )
             queue = [g for g in sub_groups if g not in all_group_ids]
             all_group_ids.update(sub_groups)
 
@@ -563,13 +689,12 @@ def _resolve_user_ids(user_type: str, users: List[str]) -> List[str]:
             return []
 
         # Get users from all resolved groups
-        placeholders = ", ".join(["%s"] * len(all_group_ids))
         with connection.cursor() as cursor:
             cursor.execute(
-                f"SELECT DISTINCT u.id FROM users u "
-                f"JOIN user_group_users ugu ON ugu.user_id = u.id "
-                f"WHERE ugu.user_group_id IN ({placeholders}) AND u.is_active = true",
-                list(all_group_ids),
+                "SELECT DISTINCT u.id FROM users u "
+                "JOIN user_group_users ugu ON ugu.user_id = u.id "
+                "WHERE ugu.user_group_id = ANY(%s) AND u.is_active = true",
+                [list(all_group_ids)],
             )
             return [row[0] for row in cursor.fetchall()]
 
