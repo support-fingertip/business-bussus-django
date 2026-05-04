@@ -1,13 +1,14 @@
 from django.db import connection, transaction
 
 from api.ORM.AuditLogs.audit_trail_logs import log_audit
+from api.security.schema_authority import get_validated_schema
 
 def new_profile(existing_profile_id, new_profile_name, **kwargs):
     created_by = kwargs.get('user_', {}).get('id')
     try:
         with connection.cursor() as cursor, transaction.atomic():
             # Fetch the existing profile details
-            cursor.execute("""SET search_path TO %s""", [kwargs.get('schema')])
+            cursor.execute("""SET search_path TO %s""", [get_validated_schema(kwargs)])
             cursor.execute("SELECT id, name, profile_type FROM profile WHERE id = %s", [existing_profile_id])
             existing_profile = cursor.fetchone()
             if not existing_profile:

@@ -1,10 +1,11 @@
 from CacheService.cache import CacheService, DjangoCacheBackend
 from api.permissions.permissions import get_permissions
+from api.security.schema_authority import get_validated_schema
 def get_pagebuilder(request, id=None, **kwargs):
     if id: 
         try:
             cache = CacheService()
-            result = cache.get(id, "page_builder", kwargs.get('schema'))
+            result = cache.get(id, "page_builder", get_validated_schema(kwargs))
             result = None
             if result is not None:
                 return result
@@ -29,7 +30,7 @@ def get_pagebuilder(request, id=None, **kwargs):
                 "components": components_data['data'],
                 "shared_profiles": sharedProfiles,
                 "dashboard_details": dashboard_details
-            }, "page_builder", kwargs.get('schema')) # Cache for 5 minutes                                      
+            }, "page_builder", get_validated_schema(kwargs)) # Cache for 5 minutes                                      
             return {
                 "page_builder": page_data[0],
                 "components": components_data['data'],

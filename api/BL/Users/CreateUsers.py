@@ -504,7 +504,7 @@ class UserBussinessLogic:
             if manager_id:
                 new_user_data['manager_id'] = manager_id
             result = post_permission(self.request, table_name='users', create_data=new_user_data, setup_check=True, **self.kwargs)
-            if self.kwargs.get('schema') != 'public':
+            if self.get_validated_schema(kwargs) != 'public':
                 self.kwargs['schema'] = 'public'
                 post_data_sql('users', new_user_data, **self.kwargs)  
             print("New user created with ID:", result)             
@@ -740,6 +740,7 @@ class UserBussinessLogic:
             return {"success": False, "error": str(e)}
 
 import requests
+from api.security.schema_authority import get_validated_schema
 
 def CreateNewUserInControlPanel(payload):
     try:

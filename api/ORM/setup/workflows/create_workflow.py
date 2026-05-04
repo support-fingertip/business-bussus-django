@@ -67,6 +67,7 @@ from datetime import datetime, timezone
 from django.db import connection, transaction
 
 from api.formulas.formula_validation import validate_formula
+from api.security.schema_authority import get_validated_schema
 
 # ── identifier safety ────────────────────────────────────────────────────────
 _IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -113,7 +114,7 @@ def get_fields_metadata(object_name: str, schema=None) -> dict:
 # ── main create function ──────────────────────────────────────────────────────
 def create_workflow(request, create_data: dict, **kwargs) -> dict:
     user = kwargs.get("user_")
-    schema = kwargs.get("schema")
+    schema = get_validated_schema(kwargs)
 
     try:
         workflow_data = create_data.get("workflow")
@@ -323,7 +324,7 @@ def validate_single_formula(**kwargs) -> bool:
     module_name = kwargs.get("module_name")   # FIX BUG-03: was `object`
     field_name  = kwargs.get("field_name")
     formula     = kwargs.get("formula")
-    schema      = kwargs.get("schema")
+    schema      = get_validated_schema(kwargs)
 
     if not formula or formula in ("", "null"):
         raise ValueError("Empty or invalid formula.")

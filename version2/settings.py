@@ -19,6 +19,41 @@ from dotenv import load_dotenv
 load_dotenv()
 from corsheaders.defaults import default_headers
 
+# -------------------------------
+# Sentry — install + initialize unconditionally; sentry-sdk no-ops cleanly
+# when SENTRY_DSN is unset, so dev/test stay quiet but production gets full
+# error visibility.
+# -------------------------------
+try:
+    import sentry_sdk
+    from sentry_sdk.integrations.django import DjangoIntegration
+    from sentry_sdk.integrations.celery import CeleryIntegration
+    from sentry_sdk.integrations.logging import LoggingIntegration
+    import logging as _stdlib_logging
+
+    _SENTRY_DSN = os.getenv("SENTRY_DSN", "")
+    if _SENTRY_DSN:
+        sentry_sdk.init(
+            dsn=_SENTRY_DSN,
+            integrations=[
+                DjangoIntegration(),
+                CeleryIntegration(),
+                # Forward WARNING+ stdlib logs as breadcrumbs and ERROR+ as events
+                LoggingIntegration(
+                    level=_stdlib_logging.INFO,
+                    event_level=_stdlib_logging.ERROR,
+                ),
+            ],
+            release=os.getenv("GIT_SHA", os.getenv("RELEASE", "dev")),
+            environment=os.getenv("DJANGO_ENV", "development"),
+            send_default_pii=False,
+            traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1")),
+            profiles_sample_rate=float(os.getenv("SENTRY_PROFILES_SAMPLE_RATE", "0")),
+        )
+except Exception:
+    # Never let observability tooling block app startup.
+    pass
+
 # Initialize environment variables
 env = environ.Env(
     DEBUG=(bool, False)  # Default DEBUG=False
@@ -151,6 +186,8 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    # Correlation ID FIRST so every other middleware's logs carry the trace_id.
+    'api.security.correlation.RequestCorrelationMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
@@ -161,8 +198,80 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # Tenant-schema middleware runs `process_view`, so it executes AFTER
+    # the dispatcher's _init_request_context has called pin_request_tenant
+    # and request.tenant_schema is populated. It then `SET search_path`
+    # so subsequent Django ORM queries (Profile.objects.get(...) etc.)
+    # automatically scope to the right tenant.
+    'api.security.tenant_schema_middleware.TenantSchemaMiddleware',
+    # Statement-timeout LAST in the chain so it sees the resolved URL
+    # (CommonMiddleware's append-slash redirect runs first) and the
+    # timeout only applies to the actual view handling.
+    'api.security.statement_timeout.StatementTimeoutMiddleware',
     # 'api.middleware.SharingMiddleware',
 ]
+
+
+# -------------------------------
+# Structured logging
+# -------------------------------
+# JSON formatter when LOG_FORMAT=json (production); text otherwise (dev).
+# RequestContextFilter injects trace_id/tenant_id/user_id from contextvars
+# into every record, so log lines carry request-correlation IDs even when
+# emitted from nested layers (BL, ORM, Celery).
+_LOG_FORMAT = os.getenv("LOG_FORMAT", "text").lower()
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "filters": {
+        "request_context": {
+            "()": "api.security.correlation.RequestContextFilter",
+        },
+    },
+    "formatters": {
+        "text": {
+            "format": (
+                "%(asctime)s %(levelname)s %(name)s "
+                "[trace=%(trace_id)s tenant=%(tenant_id)s user=%(user_id)s] "
+                "%(message)s"
+            ),
+        },
+        "json": {
+            "()": "logging.Formatter",
+            "format": (
+                '{"ts":"%(asctime)s","level":"%(levelname)s",'
+                '"logger":"%(name)s","trace_id":"%(trace_id)s",'
+                '"tenant_id":"%(tenant_id)s","user_id":"%(user_id)s",'
+                '"msg":%(message)r}'
+            ),
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "json" if _LOG_FORMAT == "json" else "text",
+            "filters": ["request_context"],
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": os.getenv("LOG_LEVEL", "INFO"),
+    },
+    "loggers": {
+        # Django's request logger is too chatty at INFO and reasonable at WARNING.
+        "django.request": {
+            "handlers": ["console"],
+            "level": "WARNING",
+            "propagate": False,
+        },
+        "django.security": {
+            "handlers": ["console"],
+            "level": "WARNING",
+            "propagate": False,
+        },
+    },
+}
 
 
 ROOT_URLCONF = 'version2.urls'

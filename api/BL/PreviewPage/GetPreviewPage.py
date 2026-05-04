@@ -1,6 +1,7 @@
 from api.permissions.permissions import get_permissions
 from utils.field_tracking import get_field_history
 from utils.target_item_filters import enrich_target_item_with_assigned_to
+from api.security.schema_authority import get_validated_schema
 
 
 def get_preview_page(request, table, **kwargs):
@@ -380,7 +381,7 @@ def get_preview_page(request, table, **kwargs):
     path_builder_data = path_builder_data[0] if path_builder_data else None
 
     # --- Fetch field history ---
-    field_history_rows = get_field_history(object_name, record_id, schema=kwargs.get('schema', 'public'))
+    field_history_rows = get_field_history(object_name, record_id, schema=(get_validated_schema(kwargs) or 'public'))
     history_data = [
         {
             "field_name": row[0],

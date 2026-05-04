@@ -990,31 +990,34 @@ CREATE TABLE IF NOT EXISTS email_templates(
 );
 
 
--- CREATE TABLE IF NOT EXISTS org_company (
---     id VARCHAR(64) PRIMARY KEY DEFAULT CONCAT('oRgN_', LEFT(gen_random_uuid()::text, 12)),
---     company_name VARCHAR(255) NOT NULL,
---     primary_contact VARCHAR(255),
---     division VARCHAR(255),
---     phone VARCHAR(64),
---     fax VARCHAR(64),
---     email VARCHAR(255),
---     website VARCHAR(512),
---     street VARCHAR(512),
---     city VARCHAR(255),
---     state VARCHAR(255),
---     postal_code VARCHAR(32),
---     country VARCHAR(255),
---     default_currency VARCHAR(8) DEFAULT 'USD',
---     default_language VARCHAR(8) DEFAULT 'en',
---     timezone VARCHAR(64) DEFAULT 'UTC',
---     fiscal_year_start_month VARCHAR(16) DEFAULT 'April',
---     description TEXT,
---     logo VARCHAR(2048),
---     created_by_id VARCHAR(64) REFERENCES users(id) ON DELETE SET NULL,
---     last_modified_by_id VARCHAR(64) REFERENCES users(id) ON DELETE SET NULL,
---     created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
---     last_modified_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
---     is_deleted BOOLEAN NOT NULL DEFAULT FALSE,
---     deleted_date TIMESTAMP DEFAULT NULL,
---     deleted_by_id VARCHAR(64) REFERENCES users(id) ON DELETE SET NULL
--- );
+-- Phase 4.A — uncommented from a previously-broken DDL block
+-- (every column line was prefixed `--` including the closing `);`).
+-- See docs/PHASE4_A_OPERATOR_NOTES.md and docs/UNSOURCED_DDL.md.
+CREATE TABLE IF NOT EXISTS org_company (
+    id VARCHAR(64) PRIMARY KEY DEFAULT CONCAT('oRgN_', LEFT(gen_random_uuid()::text, 12)),
+    company_name VARCHAR(255) NOT NULL,
+    primary_contact VARCHAR(255),
+    division VARCHAR(255),
+    phone VARCHAR(64),
+    fax VARCHAR(64),
+    email VARCHAR(255),
+    website VARCHAR(512),
+    street VARCHAR(512),
+    city VARCHAR(255),
+    state VARCHAR(255),
+    postal_code VARCHAR(32),
+    country VARCHAR(255),
+    default_currency VARCHAR(8) DEFAULT 'USD',
+    default_language VARCHAR(8) DEFAULT 'en',
+    timezone VARCHAR(64) DEFAULT 'UTC',
+    fiscal_year_start_month VARCHAR(16) DEFAULT 'April',
+    description TEXT,
+    logo VARCHAR(2048),
+    created_by_id VARCHAR(64) REFERENCES users(id) ON DELETE SET NULL,
+    last_modified_by_id VARCHAR(64) REFERENCES users(id) ON DELETE SET NULL,
+    created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_modified_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    is_deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    deleted_date TIMESTAMP DEFAULT NULL,
+    deleted_by_id VARCHAR(64) REFERENCES users(id) ON DELETE SET NULL
+);

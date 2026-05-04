@@ -1,8 +1,10 @@
 import json
 import uuid
 from django.db import connection, transaction
+from psycopg2 import sql
 
 from api.ORM.AuditLogs.audit_trail_logs import log_audit
+from api.ORM.sqlFunctions.utils.helpers import validate_identifier
 
 def create_app(data, section=None, **kwargs):
     app_data = data.get("app")
@@ -17,14 +19,26 @@ def create_app(data, section=None, **kwargs):
     if not isinstance(profiles, list):
         raise ValueError("Profiles should be a list.")
 
+    # Reject any payload key that isn't a safe column identifier before
+    # building the INSERT. Caller supplies these via the JSON body, so
+    # validating them here is the gate that closes the SQL-injection
+    # vector that previously came from f-string-joining `app_data.keys()`.
+    for column_name in app_data.keys():
+        validate_identifier(column_name, "app_data column")
+
     try:
         with connection.cursor() as cursor, transaction.atomic():
-            # ✅ Insert App
-            app_fields = ", ".join(app_data.keys())
-            placeholders = ", ".join(["%s"] * len(app_data))
+            # ✅ Insert App — every column name escaped via sql.Identifier,
+            # values bound through standard %s placeholders.
+            columns = list(app_data.keys())
             values = list(app_data.values())
-
-            insert_app_sql = f"INSERT INTO app ({app_fields}) VALUES ({placeholders}) RETURNING id, name, description"
+            insert_app_sql = sql.SQL(
+                "INSERT INTO app ({cols}) VALUES ({placeholders}) "
+                "RETURNING id, name, description"
+            ).format(
+                cols=sql.SQL(", ").join(sql.Identifier(c) for c in columns),
+                placeholders=sql.SQL(", ").join(sql.Placeholder() * len(values)),
+            )
             cursor.execute(insert_app_sql, values)
             app_row = cursor.fetchone()
 

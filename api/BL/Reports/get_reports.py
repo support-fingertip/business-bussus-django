@@ -1,5 +1,6 @@
 from api.permissions.permissions import get_permissions
 from api.BL.task import user_belongs_to_group
+from api.security.schema_authority import get_validated_schema
 
 def get_reports(request, **kwargs):
     user_id = kwargs.get('user_', {}).get('id')
@@ -37,7 +38,7 @@ def get_reports(request, **kwargs):
         elif rec.get("shared_with_type") == "group":
             # If shared with a group, we need to check if the user belongs to that group
             group_id = rec.get("shared_with_id")
-            if group_id and user_belongs_to_group(user_id, group_id, kwargs.get("schema", "public"), profile_id):
+            if group_id and user_belongs_to_group(user_id, group_id, (get_validated_schema(kwargs) or 'public'), profile_id):
                 shared_folder_ids.add(rec.get("folder_id"))
     shared_folders = []
     if shared_folder_ids:

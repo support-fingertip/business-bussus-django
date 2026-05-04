@@ -1,7 +1,57 @@
 from api.permissions.permissions import get_permissions
+from api.permissions._orm_dispatch import dispatch as _dispatch_path
+from api.security.schema_authority import get_validated_schema
 from django.db import connection
 
 from pprint import pprint
+
+
+def _resolve_user_names_raw(user_ids: list, schema: str) -> dict:
+    """Legacy path — single batched ``WHERE id IN (...)`` against users.
+
+    Replaces the per-record N+1 lookup the previous code did inside the
+    record loop. Even without ORM dispatch this is a clean win on
+    pages with many layout rows.
+    """
+    if not user_ids:
+        return {}
+    with connection.cursor() as cursor:
+        cursor.execute("SET search_path TO %s, public", [schema])
+        # Use ANY(%s) with a list parameter — single bind, no f-string
+        # placeholder construction needed.
+        cursor.execute(
+            "SELECT id, name FROM users WHERE id = ANY(%s)",
+            [list(user_ids)],
+        )
+        return {row[0]: row[1] for row in cursor.fetchall()}
+
+
+def _resolve_user_names_orm(user_ids: list, schema: str) -> dict:
+    """ORM path — uses the api.User Django model with the tenant's
+    search_path pinned. ``User._meta.db_table == 'users'`` so the
+    same identifier resolves to the tenant's local users table when
+    that exists, and falls through to public.users otherwise."""
+    if not user_ids:
+        return {}
+    from api.models import User
+    with connection.cursor() as cur:
+        cur.execute("SET search_path TO %s, public", [schema])
+    return {
+        u_id: u_name
+        for u_id, u_name in User.objects.filter(
+            id__in=list(user_ids)
+        ).values_list("id", "name")
+    }
+
+
+def _resolve_user_names(user_ids: list, schema: str) -> dict:
+    """Resolve user IDs to display names. Single batch query, dual-path."""
+    return _dispatch_path(
+        "PageLayouts._resolve_user_names",
+        raw_impl=lambda: _resolve_user_names_raw(user_ids, schema),
+        orm_impl=lambda: _resolve_user_names_orm(user_ids, schema),
+        flag="USE_ORM_FOR_BL",
+    )
 
 def PageLayouts(request, **kwargs):    
     def get_related_lists(object_name):
@@ -43,23 +93,31 @@ def PageLayouts(request, **kwargs):
     if object_name_ and not id and not created:
         result = get_permissions(request, tableName='page_layouts', where = [{"field": "object_name", "operator": "=", "value": object_name_}],fields=['name', 'label','created_by','created_date','last_modified_date'], **kwargs)
         try:
-            schema = kwargs.get('schema', 'public')
-            for record in result.get('data', []):
-                with connection.cursor() as cursor:
-                    cursor.execute("SET search_path TO %s", [schema])
-                    created_by_id = record.get("created_by")
-                    if created_by_id:
-                        cursor.execute("SELECT name FROM users WHERE id = %s", [created_by_id])
-                        row = cursor.fetchone()
-                        record["created_by"] = row[0] if row else None
-                    last_modified_by_id = record.get("last_modified_by_id")
-                    if last_modified_by_id:
-                        cursor.execute("SELECT name FROM users WHERE id = %s", [last_modified_by_id])
-                        row = cursor.fetchone()
-                        record["last_modified_by"] = row[0] if row else None
-        except Exception as e:
-            pass 
-        return result.get('data')                
+            schema = (get_validated_schema(kwargs) or 'public')
+            records = result.get('data', []) or []
+
+            # Phase 3.C: collect all distinct user IDs across every record
+            # and resolve display names in a single batch (raw or ORM
+            # depending on USE_ORM_FOR_BL). Was N+1 → 1.
+            ids_to_resolve = set()
+            for record in records:
+                if record.get("created_by"):
+                    ids_to_resolve.add(record["created_by"])
+                if record.get("last_modified_by_id"):
+                    ids_to_resolve.add(record["last_modified_by_id"])
+
+            id_to_name = _resolve_user_names(list(ids_to_resolve), schema)
+
+            for record in records:
+                created_by_id = record.get("created_by")
+                if created_by_id:
+                    record["created_by"] = id_to_name.get(created_by_id)
+                last_modified_by_id = record.get("last_modified_by_id")
+                if last_modified_by_id:
+                    record["last_modified_by"] = id_to_name.get(last_modified_by_id)
+        except Exception:
+            pass
+        return result.get('data')
 
     # Case 2: Creating a new page layout (Return default structure)
     elif object_name_ and created == "new":

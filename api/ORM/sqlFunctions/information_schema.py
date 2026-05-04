@@ -1,3 +1,4 @@
+from api.security.schema_authority import get_validated_schema
 from django.db import connection
 
 
@@ -8,7 +9,7 @@ def get_information_schema(search_table=None, **kwargs):
     Returns:
         dict: A dictionary where keys are table names and values are lists of column details.
     """
-    schema = kwargs.get('schema')  # Default schema is 'public'
+    schema = get_validated_schema(kwargs)  # Default schema is 'public'
     query = """
         SELECT table_name, column_name, data_type
         FROM information_schema.columns
@@ -52,7 +53,7 @@ def get_column_data_types(table_name, fields, **kwargs):
     WHERE table_name = %s AND column_name = ANY(%s) AND table_schema = %s;
     """
     with connection.cursor() as cur:
-        cur.execute(query, (table_name, fields, kwargs.get('schema')))
+        cur.execute(query, (table_name, fields, get_validated_schema(kwargs)))
         result = cur.fetchall()
     
     # Convert the result into a dictionary

@@ -3,21 +3,28 @@ import json
 from psycopg2 import sql
 
 from api.ORM.AuditLogs.audit_trail_logs import log_audit
+from api.ORM.sqlFunctions.utils.helpers import validate_identifier
+from api.security.schema_authority import get_validated_schema
 
 def delete_field(data, user=None, section=None ,**kwargs):
     """
     Deletes a field from an object using raw SQL and updates related layouts, list views, and permissions atomically.
     """
-    schema = kwargs.get('schema', 'public')
+    schema = (get_validated_schema(kwargs) or 'public')
     object_name = data.get('object')
     field_name = data.get('field_name')
     try:
         if not object_name or not field_name:
             raise Exception("Object name and field name are required.")
 
+        # Identifier validation: rejects anything outside the safe charset
+        # before it reaches `SET search_path` or the `ALTER TABLE` below.
+        validate_identifier(schema, "schema")
+        validate_identifier(object_name, "object_name")
+        validate_identifier(field_name, "field_name")
+
         with connection.cursor() as cursor, transaction.atomic():
-            # Set the search path to the specified schema
-            cursor.execute(f"SET search_path TO {schema};")
+            cursor.execute("SET search_path TO %s", [schema])
             # ✅ Get object ID
             cursor.execute("SELECT id, prefix FROM object WHERE name = %s", [object_name])
             object_row = cursor.fetchone()

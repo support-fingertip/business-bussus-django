@@ -3,9 +3,73 @@ from django.db import models
 
 
 from django.contrib.auth.models import  PermissionsMixin, UserManager, AbstractBaseUser
-from django.utils import timezone 
+from django.utils import timezone
 from django.utils.timezone import now
 import os
+
+# Re-export tenant-scoped models so Django picks them up under the `api`
+# app. See `api/tenant_models/__init__.py` for the per-tenant model
+# definitions; they are all managed=False (Django doesn't own their schema).
+from api.tenant_models import (  # noqa: F401  (re-exported for app discovery)
+    # Wave 2 — object metadata + authorization
+    PlatformObject,
+    Field,
+    Profile,
+    UserGroup,
+    UserGroupUser,
+    UserGroupProfile,
+    UserGroupPublicGroup,
+    ObjectPermission,
+    FieldPermission,
+    TabPermission,
+    AppPermission,
+    SharingRecord,
+    # Wave 3 — UI / layout
+    App,
+    PageLayout,
+    SearchLayout,
+    Listview,
+    PageBuilder,
+    PageComponent,
+    PageBuilderAssignment,
+    LayoutAssignment,
+    HomepageAssignment,
+    FieldMapping,
+    # Wave 4 — reporting
+    Report,
+    ReportFolder,
+    ReportFolderSharing,
+    Dashboard,
+    DashboardComponent,
+    DashboardFolder,
+    DashboardFolderSharing,
+    DashboardAssignment,
+    # Wave 5 — workflow
+    Workflow,
+    WorkflowNode,
+    WorkflowEdge,
+    PathBuilder,
+    EmailTemplate,
+    # Phase 3.B — integration / telephony / email
+    TelephonyConfig,
+    LandingNumber,
+    TelephonyUser,
+    CallActivity,
+    EmailProviderSetup,
+    UserGmailToken,
+    UserOutlookToken,
+    # Phase 3.B — audit / history
+    AuditTrailTrack,
+    FieldHistoryLog,
+    FieldTrackingConfig,
+    # Phase 3.B — misc
+    Task,
+    Notification,
+    SharedRecord,
+    # Phase 4.A — misc + shared
+    OrgCompany,
+    LeadCapture,
+)
 
 def organization_logo_path(instance, filename):
     return f"uploads/{instance.name}/{filename}"

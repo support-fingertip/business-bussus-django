@@ -6,6 +6,12 @@ from google_auth_oauthlib.flow import InstalledAppFlow,Flow
 from api.telephony.views import run_query
 from typing import Literal
 from api.BL.utils import JWTHandler
+from api.security.schema_authority import get_validated_schema
+from api.security.token_encryption import (
+    decrypt_token,
+    encrypt_token,
+    is_encrypted,
+)
 
 CREDENTIALS_PATH = "api/emailsend/credentials.json"
 TOKEN_PATH = "api/emailsend/token.json"
@@ -17,7 +23,7 @@ request:Request
 
 def authenticate(user_id,**kwargs):
     creds = None
-    schema = kwargs.get("schema","public")
+    schema = (get_validated_schema(kwargs) or 'public')
     creds,userInfo = get_user_gmail_credentials(user_id=user_id,provider="gmail",schema=schema)
     # If credentials are not valid, re-authenticate
     if not creds or not creds.valid:
@@ -26,7 +32,7 @@ def authenticate(user_id,**kwargs):
         else:
             try:
                 jwt_handler = JWTHandler()
-                data = {"user_id": user_id,"provider": "gmail","schema": kwargs.get("schema","public"), "exp": now().timestamp() + 300}
+                data = {"user_id": user_id,"provider": "gmail","schema": (get_validated_schema(kwargs) or 'public'), "exp": now().timestamp() + 300}
                 token = jwt_handler.encrypt(data,expires_in_hours=0.0833)
                 redirect_uri = os.getenv("REDIRECT_URL","")
                 print(f"Generated JWT for authentication flow: {token}")
@@ -79,10 +85,16 @@ def authenticate(user_id,**kwargs):
 
 def save_token(user_id,provider:Literal["gmail","outlook","send_grid"],creds,schema=None):
     try:
-        query =""" INSERT INTO email_provider_setup (user_id, provider, cred) VALUES (%s, %s, %s)"""
-        run_query(query,[user_id,provider,creds],schema=schema)
-        print("💾 Token saved/updated in database.")
+        # Always store the cred blob encrypted at rest. `creds` is normally a
+        # JSON string for OAuth providers; cast to str defensively in case a
+        # caller passes a dict.
+        if not isinstance(creds, str):
+            creds = json.dumps(creds)
+        encrypted_creds = encrypt_token(creds)
+        query = "INSERT INTO email_provider_setup (user_id, provider, cred) VALUES (%s, %s, %s)"
+        run_query(query, [user_id, provider, encrypted_creds], schema=schema)
     except Exception as er:
+        # Never log the cred itself.
         raise Exception(f"Database error: {str(er)}")
     return
 
@@ -195,7 +207,10 @@ def get_user_gmail_credentials(user_id, provider, schema):
             [user_id, provider],
             schema=schema,
         )
-        return (None, None) if not row else (row[0]["cred"], None)
+        if not row:
+            return (None, None)
+        # Decrypt transparently; legacy plaintext rows pass through unchanged.
+        return (decrypt_token(row[0]["cred"]), None)
 
     try:
         rows = run_query(
@@ -206,7 +221,8 @@ def get_user_gmail_credentials(user_id, provider, schema):
         if not rows:
             return None, None
 
-        stored = json.loads(rows[0]["cred"])
+        stored_raw = decrypt_token(rows[0]["cred"])
+        stored = json.loads(stored_raw)
         user_info = stored
         creds = Credentials(
             token=stored.get("token"),
@@ -241,7 +257,11 @@ def get_user_gmail_credentials(user_id, provider, schema):
                         SET cred = %s, updated_at = NOW()
                         WHERE user_id = %s AND provider = %s
                     """,
-                    [json.dumps(refreshed_payload), user_id, provider],
+                    [
+                        encrypt_token(json.dumps(refreshed_payload, default=str)),
+                        user_id,
+                        provider,
+                    ],
                     schema=schema,
                 )
 

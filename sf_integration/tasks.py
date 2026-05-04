@@ -5,6 +5,14 @@ from sf_integration.salesforce_client import sync_metadata_and_data
 from sync_salesforce import DB_CONFIG, sync_to_salesforce
 from .models import SalesforceSync
 
+# NOTE for tenant context:
+# `SalesforceSync` lives in `public` (Django-managed model), so the
+# top-level scan does not need a tenant pin. However, the per-object
+# work (`copy_salesforce_data_to_app` etc.) writes into per-tenant
+# `sf_integration_<object>` tables; those callers MUST open a
+# `with_tenant_schema(...)` context for the relevant org before
+# touching them. See `api.security.tenant_context`.
+
 @shared_task
 def process_salesforce_sync():
     sync_objects = SalesforceSync.objects.filter(is_enabled=True)

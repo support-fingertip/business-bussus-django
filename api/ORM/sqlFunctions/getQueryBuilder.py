@@ -10,6 +10,55 @@ from pypika import Order, Query, Table
 
 from api.ORM.sqlFunctions.complexGetSql import build_complex_query
 from api.ORM.sqlFunctions.relationships import build_relationships_dynamic
+from api.permissions._orm_dispatch import dispatch as _dispatch_path
+
+
+def _execute_select_raw(schema, sql, params):
+    """Legacy raw-cursor SELECT — byte-identical to pre-Phase 4.B wave 4.
+
+    Opens a cursor, sets search_path, executes the pre-composed SQL,
+    returns ``(columns, rows)`` so the caller can do the column-
+    type post-processing (JSON parsing, datetime tz attachment).
+    """
+    with connection.cursor() as cursor:
+        cursor.execute("SET search_path TO %s", [schema])
+        cursor.execute(sql, params)
+        columns = [col[0] for col in cursor.description]
+        return columns, cursor.fetchall()
+
+
+def _execute_select_orm(schema, sql, params):
+    """Gateway-backed SELECT via ``dynamic_table.select_raw``.
+
+    The gateway returns ``[{column: value}, ...]`` instead of
+    ``(columns, rows)``, so we unpack into the same shape the raw
+    path returns. The caller then runs the same JSON / datetime
+    post-processing on both.
+    """
+    from api.ORM.dynamic import dynamic_table
+    rows = dynamic_table.select_raw(schema, sql, params)
+    if not rows:
+        return [], []
+    # Preserve insertion order from the first row's dict (Python 3.7+
+    # guarantees dict ordering matches insertion).
+    columns = list(rows[0].keys())
+    tuple_rows = [tuple(r.get(c) for c in columns) for r in rows]
+    return columns, tuple_rows
+
+
+def _execute_select(schema, sql, params):
+    """Phase 4.B wave 4 dispatch chokepoint for the SELECT execution.
+
+    Both paths return ``(columns, rows)`` — a list of column names
+    and a list of row tuples — so the caller's post-processing
+    (JSON / datetime handling) stays unchanged.
+    """
+    return _dispatch_path(
+        "getQueryBuilder.execute_select",
+        raw_impl=lambda: _execute_select_raw(schema, sql, params),
+        orm_impl=lambda: _execute_select_orm(schema, sql, params),
+        flag="USE_DYNAMIC_GATEWAY",
+    )
 from api.ORM.sqlFunctions.utils.query_builder_helpers import (
     build_json_tree,
     build_nested_criteria,
@@ -203,33 +252,35 @@ def build_query(**kwargs):
 def fetch_data_raw_sql(sql: str, params: Optional[List[Any]] = None, schema: str = "public"):
     params = params or []
     try:
-        with connection.cursor() as cursor:
-            cursor.execute("SET search_path TO %s", [schema])
-            cursor.execute(sql, params)
-            columns = [col[0] for col in cursor.description]
-            results = []
-            for row in cursor.fetchall():
-                row_data = {}
-                for idx, value in enumerate(row):
-                    col_name = columns[idx]
-                    if isinstance(value, (dict, list)):
+        # Phase 4.B wave 4: dispatch the actual SELECT execution
+        # through the dynamic-gateway-backed chokepoint when
+        # USE_DYNAMIC_GATEWAY is set; otherwise the legacy raw-cursor
+        # path runs (byte-identical to pre-wave-4). Column-type post-
+        # processing below runs on both paths.
+        columns, rows = _execute_select(schema, sql, params)
+        results = []
+        for row in rows:
+            row_data = {}
+            for idx, value in enumerate(row):
+                col_name = columns[idx]
+                if isinstance(value, (dict, list)):
+                    row_data[col_name] = value
+                elif isinstance(value, str) and value.strip().startswith(('{', '[')):
+                    try:
+                        row_data[col_name] = json.loads(value)
+                    except json.JSONDecodeError:
                         row_data[col_name] = value
-                    elif isinstance(value, str) and value.strip().startswith(('{', '[')):
-                        try:
-                            row_data[col_name] = json.loads(value)
-                        except json.JSONDecodeError:
-                            row_data[col_name] = value
-                    elif isinstance(value, datetime) and value.tzinfo is None:
-                        # TIMESTAMP (without TZ) columns come back as naive datetimes.
-                        # The DB session timezone is UTC, so naive values are UTC — attach
-                        # UTC tzinfo so DRF serialises them with "+00:00" and the frontend
-                        # can correctly convert to local time instead of treating them as
-                        # local time directly (which would be 5:30 h off for IST users).
-                        row_data[col_name] = value.replace(tzinfo=dt_timezone.utc)
-                    else:
-                        row_data[col_name] = value
-                results.append(row_data)
-            return results
+                elif isinstance(value, datetime) and value.tzinfo is None:
+                    # TIMESTAMP (without TZ) columns come back as naive datetimes.
+                    # The DB session timezone is UTC, so naive values are UTC — attach
+                    # UTC tzinfo so DRF serialises them with "+00:00" and the frontend
+                    # can correctly convert to local time instead of treating them as
+                    # local time directly (which would be 5:30 h off for IST users).
+                    row_data[col_name] = value.replace(tzinfo=dt_timezone.utc)
+                else:
+                    row_data[col_name] = value
+            results.append(row_data)
+        return results
     except Exception as e:
         print(sql,"This is the SQL that caused error")
         logger.exception("SQL execution failed")

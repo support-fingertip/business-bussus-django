@@ -3,6 +3,7 @@ import requests
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from api.emailsend.utils.find_provider import check_domain_authenticated, get_email_provider_from_mx
+from api.permissions._orm_dispatch import dispatch as _dispatch_path
 from api.telephony.views import run_query
 from .utils.gmail_service import send_email_using_gmail_api,save_token
 from .utils.outlook_service import TENANT_ID, send_email_using_outlook_api
@@ -49,7 +50,7 @@ def send_test_email(request, data, **kwargs):
         record_ids = list(dict.fromkeys(data.get("record_ids", [])))
         cc_raw = data.get("cc", [])
         cc = [str(e).strip() for e in cc_raw if e]
-        schema = kwargs.get("schema")
+        schema = get_validated_schema(kwargs)
         user_ctx = kwargs.get("user_", {}) or {}
         sender_email = user_ctx.get("email")
         user_id = user_ctx.get("id")
@@ -247,12 +248,32 @@ def generate_template_hash(subject, body):
     return hashlib.md5(raw.encode()).hexdigest()
 
 
-def get_sendgrid_template_id_from_db(template_hash):
+def _sendgrid_template_id_raw(template_hash):
     query = "SELECT sendgrid_template_id FROM email_templates WHERE sendgrid_template_hash = %s"
     result = run_query(query, [template_hash])
-    return result[0]['sendgrid_template_id'] if result else None
+    return result[0]["sendgrid_template_id"] if result else None
 
-def save_sendgrid_template_id_to_db(template_hash, template_id):
+
+def _sendgrid_template_id_orm(template_hash):
+    from api.tenant_models import EmailTemplate
+    return (
+        EmailTemplate.objects.filter(sendgrid_template_hash=template_hash)
+        .values_list("sendgrid_template_id", flat=True)
+        .first()
+    )
+
+
+def get_sendgrid_template_id_from_db(template_hash):
+    """Find the SendGrid template id for a given content-hash. Dual-path."""
+    return _dispatch_path(
+        "emailsend.get_sendgrid_template_id_from_db",
+        raw_impl=lambda: _sendgrid_template_id_raw(template_hash),
+        orm_impl=lambda: _sendgrid_template_id_orm(template_hash),
+        flag="USE_ORM_FOR_BL",
+    )
+
+
+def _save_sendgrid_template_id_raw(template_hash, template_id):
     query = """
         UPDATE email_templates
         SET sendgrid_template_id = %s, sendgrid_template_hash = %s
@@ -266,17 +287,66 @@ def save_sendgrid_template_id_to_db(template_hash, template_id):
     run_query(query, [template_id, template_hash, template_hash])
 
 
+def _save_sendgrid_template_id_orm(template_hash, template_id):
+    from django.db.models import Q
+    from api.tenant_models import EmailTemplate
 
-def get_user_email_provider(user_id):
+    target_id = (
+        EmailTemplate.objects.filter(
+            Q(sendgrid_template_hash__isnull=True)
+            | Q(sendgrid_template_hash=template_hash)
+        )
+        .order_by("id")
+        .values_list("id", flat=True)
+        .first()
+    )
+    if target_id is None:
+        return
+    EmailTemplate.objects.filter(id=target_id).update(
+        sendgrid_template_id=template_id,
+        sendgrid_template_hash=template_hash,
+    )
 
+
+def save_sendgrid_template_id_to_db(template_hash, template_id):
+    """Stamp a SendGrid template id onto the FIRST matching row. Dual-path."""
+    _dispatch_path(
+        "emailsend.save_sendgrid_template_id_to_db",
+        raw_impl=lambda: _save_sendgrid_template_id_raw(template_hash, template_id),
+        orm_impl=lambda: _save_sendgrid_template_id_orm(template_hash, template_id),
+        flag="USE_ORM_FOR_BL",
+    )
+
+
+def _user_email_provider_raw(user_id):
     query = """
         SELECT provider FROM email_provider_setup
         WHERE user_id = %s
         LIMIT 1
     """
     result = run_query(query, [user_id])
-    if result:
-        return result[0]["provider"]
+    return result[0]["provider"] if result else None
+
+
+def _user_email_provider_orm(user_id):
+    from api.tenant_models import EmailProviderSetup
+    return (
+        EmailProviderSetup.objects.filter(user_id=user_id)
+        .values_list("provider", flat=True)
+        .first()
+    )
+
+
+def get_user_email_provider(user_id):
+    """Resolve the user's email provider (gmail / outlook / sendgrid)."""
+    provider = _dispatch_path(
+        "emailsend.get_user_email_provider",
+        raw_impl=lambda: _user_email_provider_raw(user_id),
+        orm_impl=lambda: _user_email_provider_orm(user_id),
+        flag="USE_ORM_FOR_BL",
+    )
+    if provider:
+        return provider
     raise Exception("Email provider not configured for user.")
 
 
@@ -364,6 +434,7 @@ class GmailOAuthCallbackView(APIView):
 # api/emailsend/views.py
 import urllib.parse
 import os
+from api.security.schema_authority import get_validated_schema
 
 
 CLIENT_ID = os.getenv("OUTLOOK_CLIENT_ID")

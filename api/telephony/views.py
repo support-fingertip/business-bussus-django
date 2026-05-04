@@ -91,6 +91,9 @@
 
 
 
+import logging
+import os
+
 from django.http import JsonResponse,HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 import json
@@ -98,6 +101,35 @@ from django.utils.dateparse import parse_datetime
 from asgiref.sync import async_to_sync
 from twilio.rest import Client
 from django.conf import settings
+
+from api.security.webhook_verification import verify_hmac_signature
+
+logger = logging.getLogger(__name__)
+
+
+def _verify_voxbay_signature(request) -> bool:
+    """Reject Voxbay webhook requests that don't carry a valid HMAC.
+
+    Operator: set ``VOXBAY_WEBHOOK_SECRET`` and configure Voxbay to send
+    ``X-Voxbay-Signature: sha256=<hex>`` over the raw body.
+
+    During the rollout window you can set ``VOXBAY_WEBHOOK_ENFORCE=0`` to
+    log-only-mode (still records every rejection in logs) so the provider
+    has time to add signing without dropping live calls. Default behaviour
+    is **enforce**.
+    """
+    raw_body = request.body
+    sig = request.headers.get("X-Voxbay-Signature") or request.META.get("HTTP_X_VOXBAY_SIGNATURE")
+    ok = verify_hmac_signature(raw_body, sig, "VOXBAY_WEBHOOK_SECRET")
+    if ok:
+        return True
+    if os.getenv("VOXBAY_WEBHOOK_ENFORCE", "1") == "0":
+        logger.warning(
+            "Voxbay webhook signature failed (log-only mode); accepting %s",
+            request.path,
+        )
+        return True
+    return False
 from twilio.twiml.voice_response import VoiceResponse
 from twilio.jwt.client import ClientCapabilityToken
 from channels.layers import get_channel_layer
@@ -105,11 +137,14 @@ from channels.layers import get_channel_layer
 def run_query(query, params=None, schema=None):
     """Execute a parameterized query safely; optionally set schema after validating it."""
     from django.db import connection
+    from api.ORM.sqlFunctions.utils.helpers import validate_identifier
     with connection.cursor() as cursor:
         if schema:
-            # Only allow simple alphanumeric/underscore schema names to avoid SQL injection
-            if not isinstance(schema, str) or not schema.replace('_', '').isalnum():
-                raise ValueError("Invalid schema name")
+            # Strict identifier validation: rejects anything that isn't a
+            # valid SQL identifier (letters, digits, underscores, must
+            # start with a letter or underscore, max 63 chars). Stops
+            # injection attempts via crafted schema names.
+            validate_identifier(schema, "schema")
             cursor.execute("SET search_path TO %s", [schema])
         cursor.execute(query, params or [])
         result = []
@@ -304,21 +339,42 @@ import json
 def telephony_outgoing(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Method not allowed'}, status=405)
+    if not _verify_voxbay_signature(request):
+        return JsonResponse({"error": "Invalid signature"}, status=401)
 
+    # Credentials sourced from environment. The previously hardcoded values
+    # have been rotated and must now be supplied by the operator. If any are
+    # missing we fail fast rather than placing a real call with stale creds.
+    UID = os.getenv("VOXBAY_UID")
+    PIN = os.getenv("VOXBAY_PIN")
+    EXT = os.getenv("VOXBAY_EXT", "108")
+    CALLER_ID = os.getenv("VOXBAY_CALLER_ID")
+    DESTINATIONNUMBER = os.getenv("VOXBAY_DESTINATION_NUMBER")
+    if not (UID and PIN and CALLER_ID and DESTINATIONNUMBER):
+        logger.error("telephony_outgoing missing Voxbay env vars")
+        return JsonResponse(
+            {"error": "Telephony not configured."}, status=503
+        )
 
-
-    # Replace these with your actual credentials
-    UID = "rr809pi0j8"
-    PIN = "561t2fuvd8"
-    EXT = "108"
-    CALLER_ID = "914847172533"  # your registered Voxbay DID
-    DESTINATIONNUMBER = "919952311465"
-    VOXBAY_API_URL = f"https://x.voxbay.com/api/click_to_call?id_dept=0&uid=rr809pi0j8&upin=561t2fuvd8&user_no={EXT}&destination={DESTINATIONNUMBER}"
-    # VOXBAY_API_URL = f"https://x.voxbay.com/api/connect_with_smartgroup?id_dept=0&uid=rr809pi0j8&upin=561t2fuvd8&phone_no={DESTINATIONNUMBER}&did={CALLER_ID}&smartgroup_uniqueid=4968"
-    response = requests.get(VOXBAY_API_URL)
-    print(response.text)
-    print(response.status_code)
-    return JsonResponse(data={},status=200)
+    # Use requests params= so values are URL-encoded; never f-string into a URL.
+    params = {
+        "id_dept": 0,
+        "uid": UID,
+        "upin": PIN,
+        "user_no": EXT,
+        "destination": DESTINATIONNUMBER,
+    }
+    try:
+        response = requests.get(
+            "https://x.voxbay.com/api/click_to_call",
+            params=params,
+            timeout=10,
+        )
+        logger.info("telephony_outgoing voxbay_status=%s", response.status_code)
+    except requests.RequestException as exc:
+        logger.error("telephony_outgoing voxbay request failed: %s", exc)
+        return JsonResponse({"error": "Upstream telephony failure."}, status=502)
+    return JsonResponse(data={}, status=200)
 
 
 
@@ -326,39 +382,49 @@ def telephony_outgoing(request):
 
 
 def accept_call(request):
-    UID = "rr809pi0j8"
-    PIN = "561t2fuvd8"
-    EXT = "108"  # Agent's extension (SIP or softphone)
-    CALLER_ID = "914847172533"  # Your Voxbay DID
+    # Voxbay creds come from environment. Failing fast beats placing a call
+    # with stale, leaked-into-source credentials.
+    UID = os.getenv("VOXBAY_UID")
+    PIN = os.getenv("VOXBAY_PIN")
+    EXT = os.getenv("VOXBAY_EXT", "108")
+    CALLER_ID = os.getenv("VOXBAY_CALLER_ID")
+    if not (UID and PIN and CALLER_ID):
+        logger.error("accept_call missing Voxbay env vars")
+        return JsonResponse({"status": "error", "message": "Telephony not configured."}, status=503)
 
-    # Get dynamic data from the GET request (agent's mobile/SIP and customer number)
-    source = request.GET.get('agent_number', "919952311465")  # Agent's mobile or SIP extension
-    destination = request.GET.get('customer_number', "919789174439")  # Customer's phone number
-    url = "https://pbx.voxbaysolutions.com/api/clicktocall.php"
+    source = request.GET.get('agent_number')
+    destination = request.GET.get('customer_number')
+    if not (source and destination):
+        return JsonResponse(
+            {"status": "error", "message": "agent_number and customer_number are required."},
+            status=400,
+        )
 
-    # Parameters to accept the call
     params = {
         "uid": UID,
         "pin": PIN,
-        "source": source,           # Agent's mobile or SIP extension
-        "destination": destination, # Customer's number
-        "ext": EXT,                 # Agent's extension
-        "callerid": CALLER_ID,      # Your DID number
+        "source": source,
+        "destination": destination,
+        "ext": EXT,
+        "callerid": CALLER_ID,
     }
 
-    # Send the request to Voxbay API
     try:
-        response = requests.get("https://pbx.voxbaysolutions.com/api/clicktocall.php?uid=rr809pi0j8&pin=561t2fuvd8&source=919952311465&destination=919789174439&ext=108&callerid=914847172533")
-        print(response.text)
+        response = requests.get(
+            "https://pbx.voxbaysolutions.com/api/clicktocall.php",
+            params=params,
+            timeout=10,
+        )
         response_data = response.json()
-
-        # Check if the response is successful
         if response.status_code == 200 and response_data.get("status") == "success":
             return JsonResponse({"status": "success", "message": "Call accepted successfully"})
-        else:
-            return JsonResponse({"status": "error", "message": "Failed to accept call", "error": response_data}, status=400)
+        return JsonResponse(
+            {"status": "error", "message": "Failed to accept call", "error": response_data},
+            status=400,
+        )
     except requests.exceptions.RequestException as e:
-        return JsonResponse({"status": "error", "message": f"Request failed: {str(e)}"}, status=500)
+        logger.error("accept_call voxbay request failed: %s", e)
+        return JsonResponse({"status": "error", "message": "Upstream telephony failure."}, status=502)
 
 #---------------------------------------------------------------
 from django.http import JsonResponse,HttpRequest
@@ -368,9 +434,39 @@ import json
 # Dummy round-robin pointer (replace with Redis in production)
 round_robin_pointers = {}
 
+
+def _landing_number_lookup_raw(telephony_id, landing_number):
+    """Legacy raw-SQL path — byte-identical shape (list of dicts)."""
+    query = (
+        "SELECT group_id, routing_logic FROM landing_numbers "
+        "WHERE telephony_id=%s AND landing_number=%s"
+    )
+    return run_query(query, [telephony_id, landing_number])
+
+
+def _landing_number_lookup_orm(telephony_id, landing_number):
+    """ORM path against the Phase 3.B LandingNumber model.
+
+    Returns the same shape as the raw path so the caller can keep
+    indexing ``result[0]['group_id']`` / ``['routing_logic']``.
+    """
+    from api.tenant_models import LandingNumber
+    row = (
+        LandingNumber.objects
+        .filter(telephony_id=telephony_id, landing_number=landing_number)
+        .values("group_id", "routing_logic")
+        .first()
+    )
+    return [row] if row else []
+
+
 @csrf_exempt
 def telephony_route(request, telephony_id):
-    print("📞 telephony_route HIT")
+    from api.permissions._orm_dispatch import dispatch as _dispatch_path
+
+    if not _verify_voxbay_signature(request):
+        return JsonResponse({"error": "Invalid signature"}, status=401)
+    logger.info("telephony_route HIT")
 
     try:
         data = json.loads(request.body)
@@ -380,9 +476,13 @@ def telephony_route(request, telephony_id):
         if not landing_number:
             return JsonResponse({'error': 'calledNumber missing'}, status=400)
 
-        # Step 1: Get group info
-        query = """SELECT group_id, routing_logic FROM landing_numbers WHERE telephony_id=%s AND landing_number=%s"""
-        result = run_query(query, [telephony_id, landing_number])
+        # Step 1: Get group info — Phase 3.C wave 2 dual-path (USE_ORM_FOR_BL).
+        result = _dispatch_path(
+            "telephony.landing_number_lookup",
+            raw_impl=lambda: _landing_number_lookup_raw(telephony_id, landing_number),
+            orm_impl=lambda: _landing_number_lookup_orm(telephony_id, landing_number),
+            flag="USE_ORM_FOR_BL",
+        )
         if not result:
             return JsonResponse({'error': 'Landing number not configured'}, status=404)
 
@@ -431,8 +531,14 @@ def exists_schema(schema_name)->bool:
         return False
 
 def get_user_by_ext(ext,schema)->dict:
+    from psycopg2 import sql
+    from api.ORM.sqlFunctions.utils.helpers import validate_identifier
     try:
-        users = """SELECT user_id FROM {}.telephony_user WHERE (details->>'ext_no')::int=%s""".format(schema)
+        validate_identifier(schema, "schema")
+        users = sql.SQL(
+            "SELECT user_id FROM {}.telephony_user "
+            "WHERE (details->>'ext_no')::int=%s"
+        ).format(sql.Identifier(schema))
         data = run_query(users,[ext])
         if data:
             user_id = data[0].get("user_id")
@@ -463,18 +569,29 @@ def get_user_by_ext(ext,schema)->dict:
 
 
 def get_object(profile_id,schema,objects=False):
+    from psycopg2 import sql
+    from api.ORM.sqlFunctions.utils.helpers import validate_identifier
     returndata = {}
     try:
-        query = f"""SELECT telephony_id FROM {schema}.landing_numbers WHERE profile_id=%s"""
+        validate_identifier(schema, "schema")
+        schema_id = sql.Identifier(schema)
+        query = sql.SQL(
+            "SELECT telephony_id FROM {}.landing_numbers WHERE profile_id=%s"
+        ).format(schema_id)
         data = run_query(query,[profile_id])
         if data and len(data) == 1:
             telephone = data[0].get("telephony_id")
-            telephony_query = f"""SELECT target_object,disposition_values FROM {schema}.telephony_config WHERE id=%s"""
+            telephony_query = sql.SQL(
+                "SELECT target_object, disposition_values "
+                "FROM {}.telephony_config WHERE id=%s"
+            ).format(schema_id)
             config = run_query(telephony_query,[telephone])
             if config and len(config) == 1:
                 target_object = config[0].get("target_object")
                 if objects:
-                    objectQuery = f"""SELECT * FROM {schema}.object WHERE id=%s"""
+                    objectQuery = sql.SQL(
+                        "SELECT * FROM {}.object WHERE id=%s"
+                    ).format(schema_id)
                     objDetails = run_query(objectQuery,[target_object])
                     returndata["objectdetails"] = objDetails
                 returndata["error"] = False
@@ -500,7 +617,9 @@ from channels.layers import get_channel_layer
 
 @csrf_exempt
 def telephony_connecting(request):
-    print("📞 telephony_connecting HIT")
+    if not _verify_voxbay_signature(request):
+        return JsonResponse({"error": "Invalid signature"}, status=401)
+    logger.info("telephony_connecting HIT")
     try:
         data = json.loads(request.body)
         print("Payload:", data)
@@ -585,6 +704,8 @@ from django.http import JsonResponse
 import json
 @csrf_exempt
 def telephony_hangup(request:HttpRequest):
+    if not _verify_voxbay_signature(request):
+        return JsonResponse({"error": "Invalid signature"}, status=401)
     try:
         data = json.loads(request.body)
         agent_ext = data.get("agent_ext")
@@ -612,9 +733,11 @@ def telephony_hangup(request:HttpRequest):
 
 @csrf_exempt
 def telephony_cdr(request:HttpRequest):
+    if not _verify_voxbay_signature(request):
+        return JsonResponse({"error": "Invalid signature"}, status=401)
     try:
         data = json.loads(request.body)
-        print("CDR Data:", data)
+        logger.info("CDR received")
 
         call_id = data.get("CallUUID")
         if not call_id:
@@ -635,18 +758,24 @@ def telephony_cdr(request:HttpRequest):
         if is_schema:
             get_user = get_user_by_ext(ext_no,org)
             if call_log_id:
-                exists = run_query("SELECT id FROM {}.call WHERE id=%s".format(org), [call_log_id])
+                from psycopg2 import sql as _sql
+                from api.ORM.sqlFunctions.utils.helpers import (
+                    validate_identifier as _vi,
+                )
+                _vi(org, "schema")
+                exists = run_query(
+                    _sql.SQL("SELECT id FROM {}.call WHERE id=%s").format(
+                        _sql.Identifier(org)
+                    ),
+                    [call_log_id],
+                )
                 if not exists:
                     pass
-                update_query = """
-                    UPDATE {}.call SET
-                        start_time = %s,
-                        end_time = %s,
-                        duration = %s,
-                        recording_link = %s,
-                        call_status = %s
-                    WHERE id = %s
-                """.format(org)
+                update_query = _sql.SQL(
+                    "UPDATE {}.call SET "
+                    "start_time = %s, end_time = %s, duration = %s, "
+                    "recording_link = %s, call_status = %s WHERE id = %s"
+                ).format(_sql.Identifier(org))
                 run_query(update_query, [
                     callStartTime,
                     end_time, 
@@ -661,19 +790,18 @@ def telephony_cdr(request:HttpRequest):
                 if obj['error']:
                     raise Exception(obj["message"])
                 object_id=obj["target_object"]
-                query = """
-                UPDATE {}.call
-                SET
-                    landing_number = %s,
-                    customer_number= %s,
-                    recording_link = %s,
-                    start_time     = %s,
-                    end_time       = %s,
-                    call_status    = %s,
-                    object_id      = %s,
-                    duration = %s
-                WHERE calluuid = %s
-            """.format(org)
+                from psycopg2 import sql as _sql
+                from api.ORM.sqlFunctions.utils.helpers import (
+                    validate_identifier as _vi,
+                )
+                _vi(org, "schema")
+                query = _sql.SQL(
+                    "UPDATE {}.call SET "
+                    "landing_number = %s, customer_number = %s, "
+                    "recording_link = %s, start_time = %s, end_time = %s, "
+                    "call_status = %s, object_id = %s, duration = %s "
+                    "WHERE calluuid = %s"
+                ).format(_sql.Identifier(org))
             run_query(
                 query,
                 [
@@ -743,7 +871,9 @@ def make_call(request:HttpRequest):
 
 @csrf_exempt
 def incoming_call(request):
-    print("📞 Make call HIT")
+    if not _verify_voxbay_signature(request):
+        return JsonResponse({"error": "Invalid signature"}, status=401)
+    logger.info("incoming_call HIT")
     if request.method == "POST":
         data = json.loads(request.body)
         ext = data.get("agent_ext","")
@@ -760,13 +890,15 @@ def incoming_call(request):
                     user_id = user["user_id"]
                     obj = get_object(user['profile_id'],user['schema'],objects=True)
                     object_id=obj["target_object"]
-                    query = """
-                    UPDATE {}.call
-                    SET object_id = %s,
-                    agent_id = %s
-                    WHERE calluuid = %s
-                    RETURNING id
-                """.format(org)
+                    from psycopg2 import sql
+                    from api.ORM.sqlFunctions.utils.helpers import validate_identifier
+                    validate_identifier(org, "schema")
+                    query = sql.SQL(
+                        "UPDATE {}.call "
+                        "SET object_id = %s, agent_id = %s "
+                        "WHERE calluuid = %s "
+                        "RETURNING id"
+                    ).format(sql.Identifier(org))
                     logid = run_query(
                         query,
                         [object_id,user_id, calluuid]
@@ -788,8 +920,17 @@ def incoming_call(request):
                     )
 
                 else:
-                    query = """INSERT INTO {}.call(call_type,landing_number,customer_number,start_time,calluuid)
-                    VALUES('Inbound', %s, %s, %s, %s) RETURNING id""".format(org)
+                    from psycopg2 import sql as _sql
+                    from api.ORM.sqlFunctions.utils.helpers import (
+                        validate_identifier as _vi,
+                    )
+                    _vi(org, "schema")
+                    query = _sql.SQL(
+                        "INSERT INTO {}.call("
+                        "call_type, landing_number, customer_number, "
+                        "start_time, calluuid) "
+                        "VALUES('Inbound', %s, %s, %s, %s) RETURNING id"
+                    ).format(_sql.Identifier(org))
                     logid =  run_query(query,[destination_number,source_number,callStartTime,calluuid])
                     
             except Exception as er:
@@ -799,8 +940,12 @@ def incoming_call(request):
 
 def connect_agent(request):
     response = VoiceResponse()
-    response.say("Connctiong to ur voice agent please wait")
-    response.dial("+919952311465")
+    response.say("Connecting to your voice agent, please wait.")
+    agent_dial = os.getenv("VOXBAY_AGENT_DIAL_NUMBER")
+    if not agent_dial:
+        logger.error("connect_agent: VOXBAY_AGENT_DIAL_NUMBER unset")
+        return HttpResponse(status=503)
+    response.dial(agent_dial)
     return HttpResponse()
 
 @csrf_exempt
@@ -899,15 +1044,26 @@ def on_connected(request:HttpRequest):
 
 
 def user_can_make_call(request:HttpRequest):
+    from psycopg2 import sql as _sql
+    from api.ORM.sqlFunctions.utils.helpers import (
+        validate_identifier as _vi,
+    )
     user_id = request.POST.get("id")
     profile = request.POST.get("profile_id")
     schema = request.POST.get("schema","pubic")
     telephony_grp = request.POST.get("telephony_grp")
 
-
-    telephone_group = f"""SELECT * FROM {schema}.user_group WHERE id=%s"""
-    profile_query = f"""SELECT * FROM {schema}.user_group_profiles WHERE profile_id = %s"""
-    user_query = f"""SELECT * FROM {schema}.user_group_users WHERE user_group_id = %s"""
+    _vi(schema, "schema")
+    schema_id = _sql.Identifier(schema)
+    telephone_group = _sql.SQL(
+        "SELECT * FROM {}.user_group WHERE id=%s"
+    ).format(schema_id)
+    profile_query = _sql.SQL(
+        "SELECT * FROM {}.user_group_profiles WHERE profile_id = %s"
+    ).format(schema_id)
+    user_query = _sql.SQL(
+        "SELECT * FROM {}.user_group_users WHERE user_group_id = %s"
+    ).format(schema_id)
     telegrp = run_query(telephone_group,[telephony_grp],fetch_one=True)
     if not telegrp:
         return False

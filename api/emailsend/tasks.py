@@ -4,6 +4,7 @@ from api.emailsend.views import send_test_email
 from django.db import connection
 from datetime import datetime
 from api.telephony.views import run_query
+from api.security.tenant_context import tenant_schema_required
 
 from channels.layers import get_channel_layer
 from ..notifications.notify import trigger_notication
@@ -11,9 +12,23 @@ from ..notifications.notify import trigger_notication
 import json
 
 @shared_task
-def process_due_email_campaigns(request):
+@tenant_schema_required("tenant_schema")
+def process_due_email_campaigns(tenant_schema, request=None):
+    """Process draft email campaigns whose send_time has elapsed.
+
+    Phase 2 risk-mitigation: now requires ``tenant_schema`` as the first
+    argument. The ``@tenant_schema_required`` decorator pins the
+    Postgres ``search_path`` to that schema for the body of the task,
+    so queries against ``campaign``/``campaign_member``/``email_templates``
+    hit the right tenant's tables.
+
+    Callers (Celery beat schedules, manual ``apply_async``) MUST pass
+    the tenant schema explicitly. The previous signature took only
+    ``request`` and silently ran against the connection's default
+    search_path — broken across tenants.
+    """
     now = datetime.utcnow()
-    print(f"🔄 Checking for campaigns due before (UTC): {now.isoformat()}Z")
+    print(f"🔄 Checking for campaigns due before (UTC): {now.isoformat()}Z (tenant={tenant_schema})")
 
 
     # Step 1: Fetch due email campaigns
@@ -94,6 +109,12 @@ BATCH_SIZE = 100
 
 @shared_task
 def send_notify_email_verification():
+    """Email-verification reminder sweep.
+
+    Reads ``public.users`` (cross-tenant) — does NOT need a tenant
+    pin. The query is explicitly schema-qualified with ``public.``
+    so it's safe regardless of the connection's current search_path.
+    """
     print("Starting email verification reminders...")
     offset = 0
     channel_layer = get_channel_layer()

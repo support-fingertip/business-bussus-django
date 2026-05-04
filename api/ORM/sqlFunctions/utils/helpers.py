@@ -8,24 +8,45 @@ import re
 # Helper functions extracted
 # ------------------------------
 
-def validate_identifier(identifier: str) -> str:
+def validate_identifier(identifier: str, kind: str = "identifier") -> str:
     """
     Validate a database identifier (table, column, schema name).
-    Raises ValueError if the identifier contains unsafe characters.
-    Returns the validated identifier.
-    
-    Note: PostgreSQL identifiers should start with a letter or underscore
-    and contain only letters, digits, and underscores. Dollar signs are
-    intentionally excluded for security reasons.
+
+    Raises ValueError if the identifier:
+      - is empty/None
+      - contains characters outside ``[A-Za-z0-9_]``
+      - does not start with a letter or underscore
+      - exceeds 63 characters (PostgreSQL's NAMEDATALEN limit; longer
+        names are silently truncated, which would break sql.Identifier
+        round-trips)
+
+    The optional ``kind`` argument is used purely for the error message
+    so callers can say ``validate_identifier(schema, "schema")`` and get
+    a clear failure like ``Invalid schema: '...'``.
     """
     if not identifier:
-        raise ValueError("Identifier cannot be empty")
-    
+        raise ValueError(f"{kind.capitalize()} cannot be empty")
+
+    if not isinstance(identifier, str):
+        raise ValueError(f"{kind.capitalize()} must be a string, got {type(identifier).__name__}")
+
+    # PG NAMEDATALEN default = 64 → 63 usable chars. Reject anything longer
+    # to avoid silent truncation by the server.
+    if len(identifier) > 63:
+        raise ValueError(
+            f"Invalid {kind}: {identifier!r}. Identifier exceeds PostgreSQL's "
+            f"63-character limit."
+        )
+
     # Allow alphanumeric and underscore only (no dollar sign for security)
     # Must start with letter or underscore
     if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', identifier):
-        raise ValueError(f"Invalid identifier: {identifier}. Only alphanumeric characters and underscores are allowed, and it must start with a letter or underscore.")
-    
+        raise ValueError(
+            f"Invalid {kind}: {identifier!r}. Only alphanumeric characters "
+            f"and underscores are allowed, and it must start with a letter "
+            f"or underscore."
+        )
+
     return identifier
 
 def get_aggregate_function(name: str, column):
