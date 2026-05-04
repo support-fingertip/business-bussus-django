@@ -11,8 +11,56 @@ import json
 from api.ORM.AuditLogs.audit_trail_logs import log_audit
 from api.ORM.sqlFunctions.utils.error_handlers import explain_db_error
 from api.ORM.sqlFunctions.utils.helpers import validate_identifier
+from api.permissions._orm_dispatch import dispatch as _dispatch_path
 from api.security.schema_authority import get_validated_schema
 from psycopg2.extensions import cursor as PgCursor
+
+
+def _execute_insert_raw(cursor, table_name, cleaned_item):
+    """Legacy raw-cursor INSERT — byte-identical to pre-Phase 4.B wave 3.
+
+    Builds ``INSERT ... RETURNING *`` via ``sql.Identifier`` (already
+    safe in the pre-wave-3 code) and executes against the caller's
+    existing cursor + transaction. Returns the inserted row as a
+    dict.
+    """
+    columns = list(cleaned_item.keys())
+    values = [cleaned_item[col] for col in columns]
+    query = sql.SQL("INSERT INTO {} ({}) VALUES ({}) RETURNING *").format(
+        sql.Identifier(table_name),
+        sql.SQL(", ").join(map(sql.Identifier, columns)),
+        sql.SQL(", ").join(sql.Placeholder() * len(values)),
+    )
+    cursor.execute(query, values)
+    return dict(zip([desc[0] for desc in cursor.description], cursor.fetchone()))
+
+
+def _execute_insert_orm(schema, table_name, cleaned_item):
+    """Gateway-backed INSERT via ``dynamic_table.insert_unchecked``.
+
+    Opens a fresh cursor on the same connection — Postgres
+    transactions live at the connection level, so the caller's outer
+    ``transaction.atomic`` wraps both this INSERT and the surrounding
+    metadata reads. Returns the inserted row as a dict (matching the
+    raw path's shape).
+    """
+    from api.ORM.dynamic import dynamic_table
+    return dynamic_table.insert_unchecked(schema, table_name, cleaned_item)
+
+
+def _execute_insert(cursor, schema, table_name, cleaned_item):
+    """Phase 4.B wave 3 dispatch chokepoint for the INSERT SQL.
+
+    Both paths return the inserted row as a dict (via ``RETURNING *``).
+    The caller is responsible for any post-processing (JSON parsing,
+    child-record cascading, etc.).
+    """
+    return _dispatch_path(
+        f"createSQLFunction.execute_insert.{table_name}",
+        raw_impl=lambda: _execute_insert_raw(cursor, table_name, cleaned_item),
+        orm_impl=lambda: _execute_insert_orm(schema, table_name, cleaned_item),
+        flag="USE_DYNAMIC_GATEWAY",
+    )
 
 
 def _normalize_text(value):
@@ -1095,16 +1143,11 @@ def post_data_sql(table_name, data, prefix='GEN', section=None, **kwargs):
                                     }
                                 }
 
-                        columns = list(cleaned_item.keys())
-                        values = [cleaned_item[col] for col in columns]
-                        query = sql.SQL("INSERT INTO {} ({}) VALUES ({}) RETURNING *").format(
-                            sql.Identifier(table_name),
-                            sql.SQL(', ').join(map(sql.Identifier, columns)),
-                            sql.SQL(', ').join(sql.Placeholder() * len(values))
-                        )
-                        
-                        cursor.execute(query, values)
-                        inserted_record = dict(zip([desc[0] for desc in cursor.description], cursor.fetchone()))
+                        # Phase 4.B wave 3: dispatch the actual INSERT through
+                        # the dynamic-gateway-backed chokepoint when
+                        # USE_DYNAMIC_GATEWAY is set; otherwise the legacy
+                        # raw-cursor path runs (byte-identical to pre-wave-3).
+                        inserted_record = _execute_insert(cursor, schema, table_name, cleaned_item)
                         # Parse JSON fields
                         for key, col_type in type_map.items():
                             if col_type in ['json', 'jsonb'] and isinstance(inserted_record.get(key), str):
