@@ -50,6 +50,22 @@ from api.tenant_models import (  # noqa: F401  (re-exported for app discovery)
     WorkflowEdge,
     PathBuilder,
     EmailTemplate,
+    # Phase 3.B — integration / telephony / email
+    TelephonyConfig,
+    LandingNumber,
+    TelephonyUser,
+    CallActivity,
+    EmailProviderSetup,
+    UserGmailToken,
+    UserOutlookToken,
+    # Phase 3.B — audit / history
+    AuditTrailTrack,
+    FieldHistoryLog,
+    FieldTrackingConfig,
+    # Phase 3.B — misc
+    Task,
+    Notification,
+    SharedRecord,
 )
 
 def organization_logo_path(instance, filename):

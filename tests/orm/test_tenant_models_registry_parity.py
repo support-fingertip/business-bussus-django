@@ -73,6 +73,23 @@ EXPECTED_DB_TABLES = {
     "WorkflowEdge": "workflow_edge",
     "PathBuilder": "path_builder",
     "EmailTemplate": "email_templates",
+    # Phase 3.B Wave 6 — integration / telephony / email
+    "TelephonyConfig": "telephony_config",
+    "LandingNumber": "landing_numbers",
+    "TelephonyUser": "telephony_user",
+    "CallActivity": "callactivity",
+    "EmailProviderSetup": "email_provider_setup",
+    "UserGmailToken": "user_gmail_tokens",
+    "UserOutlookToken": "user_outlook_tokens",
+    # Phase 3.B Wave 7 — audit / history
+    "AuditTrailTrack": "audit_trail_track",
+    "FieldHistoryLog": "field_history_log",
+    "FieldTrackingConfig": "field_tracking_config",
+    # Phase 3.B Wave 8 — misc (org_company intentionally excluded;
+    # its DDL in default_tables.sql is fully commented out)
+    "Task": "task",
+    "Notification": "notifications",
+    "SharedRecord": "shared_records",
 }
 
 

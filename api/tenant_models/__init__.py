@@ -74,6 +74,31 @@ from api.tenant_models.workflow import (
     EmailTemplate,
 )
 
+# Phase 3.B — integration / telephony / email
+from api.tenant_models.integration import (
+    TelephonyConfig,
+    LandingNumber,
+    TelephonyUser,
+    CallActivity,
+    EmailProviderSetup,
+    UserGmailToken,
+    UserOutlookToken,
+)
+
+# Phase 3.B — audit / history
+from api.tenant_models.audit import (
+    AuditTrailTrack,
+    FieldHistoryLog,
+    FieldTrackingConfig,
+)
+
+# Phase 3.B — misc
+from api.tenant_models.misc import (
+    Task,
+    Notification,
+    SharedRecord,
+)
+
 
 __all__ = [
     # Wave 2 — object metadata
@@ -118,4 +143,20 @@ __all__ = [
     "WorkflowEdge",
     "PathBuilder",
     "EmailTemplate",
+    # Wave 6 — integration / telephony / email (Phase 3.B)
+    "TelephonyConfig",
+    "LandingNumber",
+    "TelephonyUser",
+    "CallActivity",
+    "EmailProviderSetup",
+    "UserGmailToken",
+    "UserOutlookToken",
+    # Wave 7 — audit / history (Phase 3.B)
+    "AuditTrailTrack",
+    "FieldHistoryLog",
+    "FieldTrackingConfig",
+    # Wave 8 — misc (Phase 3.B)
+    "Task",
+    "Notification",
+    "SharedRecord",
 ]
