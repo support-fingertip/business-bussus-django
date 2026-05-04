@@ -2,14 +2,21 @@
 custom-business-object tables.
 
 All four primitives below take a Django ``request`` (so they can read
-``request.tenant_schema`` set by ``schema_authority``), an
+``request.tenant_schema`` set by ``schema_authority``) OR a schema
+string (for non-HTTP callers like the SQL function modules), an
 ``object_name`` (validated against the metadata registry), and a
 narrowly-typed payload. They build SQL exclusively via ``psycopg2.sql``
 composables, never f-strings or ``.format()`` on plain strings.
 
-Phase 1 scaffold: feature-flagged off in production. Phase 2 wires the
-BL layer through these primitives once the regression suite proves they
-match the legacy paths byte-for-byte.
+Phase 1 (scaffold): built but not wired. Caller-side feature flag
+guarded by the legacy path raising ``DynamicGatewayDisabled``.
+
+Phase 4.B wave 1: routing happens via ``api.permissions._orm_dispatch``
+with the ``USE_DYNAMIC_GATEWAY`` flag. The legacy DELETE path
+(``api/ORM/sqlFunctions/deleteSQLFunction.py``) now dispatches between
+its raw cursor implementation and a thin wrapper that calls
+``dynamic_table.delete()`` here. Future waves wire UPDATE / INSERT /
+SELECT the same way.
 
 Authorization is OUT of scope here — the gateway trusts that the caller
 has already gone through the permissions layer. The gateway's job is
@@ -19,7 +26,6 @@ SQL safety, schema authority, and metadata enforcement.
 from __future__ import annotations
 
 import logging
-import os
 from typing import Any, Iterable, Optional, Sequence
 
 from django.db import connection, transaction
@@ -35,19 +41,12 @@ from api.ORM.dynamic.metadata_loader import ObjectMeta, load_object
 logger = logging.getLogger(__name__)
 
 
-def _enforce_off_by_default() -> bool:
-    """Phase 1: the gateway is built but not wired into production.
-
-    BL/permissions still call the legacy paths. Returning False here
-    means callers that import the gateway directly will get a clear
-    NotImplementedError with the env flag they need to set, instead of
-    silently entering an untested path.
-    """
-    return os.getenv("USE_DYNAMIC_GATEWAY", "0") == "1"
-
-
-class DynamicGatewayDisabled(RuntimeError):
-    pass
+# Phase 4.B wave 1: removed _enforce_off_by_default + DynamicGatewayDisabled.
+# The off-by-default contract now lives in the dispatch helper
+# (api.permissions._orm_dispatch with flag="USE_DYNAMIC_GATEWAY"), not
+# here. The gateway is a library — callers that reach it are expected
+# to have already gone through dispatch, which means the env flag is
+# already on. Direct imports are still allowed for tests + tooling.
 
 
 class UnknownObject(LookupError):
@@ -58,8 +57,18 @@ class UnknownField(LookupError):
     pass
 
 
-def _pinned_schema(request) -> str:
-    schema = getattr(request, "tenant_schema", None)
+def _resolve_schema(request_or_schema) -> str:
+    """Accept either a Django request (with ``tenant_schema`` pinned)
+    or a schema string. Non-HTTP callers (e.g. the SQL function
+    modules) pass schema directly because they don't have a request
+    object to thread through."""
+    if isinstance(request_or_schema, str):
+        if not request_or_schema:
+            raise PermissionError(
+                "dynamic_table called with empty schema string."
+            )
+        return request_or_schema
+    schema = getattr(request_or_schema, "tenant_schema", None)
     if not schema:
         raise PermissionError(
             "dynamic_table called without a pinned tenant schema. "
@@ -123,12 +132,7 @@ def select(
     ``where`` is an iterable of ``(field, op, value)`` tuples; only a
     small whitelist of operators is accepted.
     """
-    if not _enforce_off_by_default():
-        raise DynamicGatewayDisabled(
-            "dynamic_table is feature-flagged off; set USE_DYNAMIC_GATEWAY=1."
-        )
-
-    schema = _pinned_schema(request)
+    schema = _resolve_schema(request)
     meta = _require_meta(schema, object_name)
 
     valid_fields = set(meta.field_names()) | {"id"}
@@ -214,14 +218,10 @@ def select(
 
 def insert(request, object_name: str, payload: dict) -> dict:
     """Insert one row, return the row with its server-generated columns."""
-    if not _enforce_off_by_default():
-        raise DynamicGatewayDisabled(
-            "dynamic_table is feature-flagged off; set USE_DYNAMIC_GATEWAY=1."
-        )
     if not payload:
         raise ValueError("insert requires a non-empty payload.")
 
-    schema = _pinned_schema(request)
+    schema = _resolve_schema(request)
     meta = _require_meta(schema, object_name)
     _validate_payload_keys(meta, payload)
 
@@ -244,16 +244,12 @@ def insert(request, object_name: str, payload: dict) -> dict:
 
 def update(request, object_name: str, *, record_id: str, patch: dict) -> int:
     """Update one row by primary key. Returns the number of rows affected."""
-    if not _enforce_off_by_default():
-        raise DynamicGatewayDisabled(
-            "dynamic_table is feature-flagged off; set USE_DYNAMIC_GATEWAY=1."
-        )
     if not patch:
         raise ValueError("update requires a non-empty patch.")
     if not record_id:
         raise ValueError("update requires a record_id.")
 
-    schema = _pinned_schema(request)
+    schema = _resolve_schema(request)
     meta = _require_meta(schema, object_name)
     _validate_payload_keys(meta, patch)
 
@@ -273,14 +269,10 @@ def update(request, object_name: str, *, record_id: str, patch: dict) -> int:
 
 def delete(request, object_name: str, *, record_ids: Sequence[str]) -> int:
     """Hard-delete rows by primary key. Returns affected row count."""
-    if not _enforce_off_by_default():
-        raise DynamicGatewayDisabled(
-            "dynamic_table is feature-flagged off; set USE_DYNAMIC_GATEWAY=1."
-        )
     if not record_ids:
         return 0
 
-    schema = _pinned_schema(request)
+    schema = _resolve_schema(request)
     meta = _require_meta(schema, object_name)
 
     placeholders = sql.SQL(", ").join([sql.Placeholder()] * len(record_ids))

@@ -12,6 +12,8 @@ independently:
 
   USE_ORM_FOR_PERMISSIONS  — Phase 2.B (permissions.py)
   USE_ORM_FOR_BL           — Phase 3.C (BL files using Wave 3-5 models)
+  USE_DYNAMIC_GATEWAY      — Phase 4.B (dynamic-object CRUD via the
+                             api.ORM.dynamic gateway; first wave: DELETE)
 
 Default for every flag is OFF — operators flip it after they've
 soaked enough traffic on the new path. Per-call DEBUG logging records
