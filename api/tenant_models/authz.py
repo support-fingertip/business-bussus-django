@@ -86,3 +86,58 @@ class UserGroupUser(TenantModel):
 
     def __str__(self) -> str:
         return f"{self.user_group_id}:{self.user_id}"
+
+
+class UserGroupProfile(TenantModel):
+    """``user_group_profiles`` — junction (user_group ↔ profile)."""
+
+    id = models.CharField(max_length=64, primary_key=True)
+    user_group = models.ForeignKey(
+        UserGroup,
+        db_column="user_group_id",
+        related_name="profile_assignments",
+        on_delete=models.DO_NOTHING,
+        db_constraint=False,
+    )
+    profile = models.ForeignKey(
+        Profile,
+        db_column="profile_id",
+        related_name="user_group_assignments",
+        on_delete=models.DO_NOTHING,
+        db_constraint=False,
+    )
+    created_date = models.DateTimeField(null=True, blank=True)
+
+    class Meta(TenantModel.Meta):
+        db_table = "user_group_profiles"
+        verbose_name = "User Group Profile"
+        verbose_name_plural = "User Group Profiles"
+        unique_together = (("user_group", "profile"),)
+
+
+class UserGroupPublicGroup(TenantModel):
+    """``user_group_public_groups`` — junction for nested user groups
+    (a group can include other groups as members)."""
+
+    id = models.CharField(max_length=64, primary_key=True)
+    user_group = models.ForeignKey(
+        UserGroup,
+        db_column="user_group_id",
+        related_name="public_group_memberships",
+        on_delete=models.DO_NOTHING,
+        db_constraint=False,
+    )
+    public_group = models.ForeignKey(
+        UserGroup,
+        db_column="public_group_id",
+        related_name="parent_groups",
+        on_delete=models.DO_NOTHING,
+        db_constraint=False,
+    )
+    created_date = models.DateTimeField(null=True, blank=True)
+
+    class Meta(TenantModel.Meta):
+        db_table = "user_group_public_groups"
+        verbose_name = "User Group Public Group"
+        verbose_name_plural = "User Group Public Groups"
+        unique_together = (("user_group", "public_group"),)
