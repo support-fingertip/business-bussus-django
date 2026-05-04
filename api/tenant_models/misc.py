@@ -1,4 +1,4 @@
-"""Phase 3.B — miscellaneous tenant-scoped models.
+"""Phase 3.B (+ Phase 4.A) — miscellaneous tenant-scoped models.
 
 Tables modeled here:
   task            — Task (per-tenant task / to-do)
@@ -9,10 +9,9 @@ Tables modeled here:
                                    default access; see Phase 2.RM
                                    ``api/tenant_models/sharing.py``
                                    docstring for the full disambiguation)
-
-(``org_company`` is intentionally NOT modeled — its DDL in
-default_tables.sql is fully commented out, the table doesn't exist
-in production tenants. Documented in docs/UNSOURCED_DDL.md.)
+  org_company     — OrgCompany (per-tenant company info — added in
+                                Phase 4.A after the DDL block was
+                                un-commented; see operator notes)
 
 All models managed=False; FKs db_constraint=False. See ADR-0003.
 """
@@ -164,3 +163,48 @@ class SharedRecord(TenantModel):
         db_table = "shared_records"
         verbose_name = "Shared Record (per-record grant)"
         verbose_name_plural = "Shared Records (per-record grants)"
+
+
+class OrgCompany(TenantModel):
+    """``org_company`` — per-tenant company information (single-row by convention).
+
+    Added in Phase 4.A after the DDL block was un-commented in
+    ``default_tables.sql``. The shape was already complete in source
+    control — every line was just `--`-prefixed. No code queries this
+    table yet; the model exists so future feature work can use the
+    ORM directly.
+    """
+
+    id = models.CharField(max_length=64, primary_key=True)
+    company_name = models.CharField(max_length=255)
+    primary_contact = models.CharField(max_length=255, null=True, blank=True)
+    division = models.CharField(max_length=255, null=True, blank=True)
+    phone = models.CharField(max_length=64, null=True, blank=True)
+    fax = models.CharField(max_length=64, null=True, blank=True)
+    email = models.CharField(max_length=255, null=True, blank=True)
+    website = models.CharField(max_length=512, null=True, blank=True)
+    street = models.CharField(max_length=512, null=True, blank=True)
+    city = models.CharField(max_length=255, null=True, blank=True)
+    state = models.CharField(max_length=255, null=True, blank=True)
+    postal_code = models.CharField(max_length=32, null=True, blank=True)
+    country = models.CharField(max_length=255, null=True, blank=True)
+    default_currency = models.CharField(max_length=8, default="USD")
+    default_language = models.CharField(max_length=8, default="en")
+    timezone = models.CharField(max_length=64, default="UTC")
+    fiscal_year_start_month = models.CharField(max_length=16, default="April")
+    description = models.TextField(null=True, blank=True)
+    logo = models.CharField(max_length=2048, null=True, blank=True)
+
+    created_by_id = models.CharField(max_length=64, null=True, blank=True)
+    last_modified_by_id = models.CharField(max_length=64, null=True, blank=True)
+    deleted_by_id = models.CharField(max_length=64, null=True, blank=True)
+    is_deleted = models.BooleanField(default=False)
+
+    created_date = models.DateTimeField(null=True, blank=True)
+    last_modified_date = models.DateTimeField(null=True, blank=True)
+    deleted_date = models.DateTimeField(null=True, blank=True)
+
+    class Meta(TenantModel.Meta):
+        db_table = "org_company"
+        verbose_name = "Organization Company"
+        verbose_name_plural = "Organization Companies"
