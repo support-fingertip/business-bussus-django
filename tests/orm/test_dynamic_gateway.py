@@ -1,18 +1,39 @@
-"""Unit tests for ``api.ORM.dynamic`` scaffold.
+"""Unit tests for ``api.ORM.dynamic`` gateway.
 
-The gateway is feature-flagged off by default in Phase 1; these tests
-cover the static contract:
+Phase 1: scaffold built, feature-flagged off via a self-gate that
+raised ``DynamicGatewayDisabled``.
 
-  - feature flag gate raises a clear error when not enabled,
-  - identifier validators reject unsafe identifiers,
-  - metadata loader cache key shape is stable.
+Phase 4.B wave 1: the self-gate is gone — routing happens via
+``api.permissions._orm_dispatch`` with ``flag="USE_DYNAMIC_GATEWAY"``.
+The gateway is now a regular library; callers reach it through the
+dispatch primitive, not directly by env var.
+
+Tests cover:
+  - identifier validators (unchanged from Phase 1)
+  - ``_resolve_schema`` accepts both request objects and strings
+  - missing/empty schema still raises ``PermissionError``
 """
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 
-from api.ORM.dynamic.identifier_validator import (
+
+# api.ORM.dynamic re-exports dynamic_table at package import time, which
+# imports django.db. Skip the whole module if Django isn't installed in
+# this environment (matching the parity-test pattern).
+pytest.importorskip("django")
+import os
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "version2.settings")
+try:
+    import django
+    django.setup()
+except Exception:
+    pytest.skip("Django not configured in this environment", allow_module_level=True)
+
+from api.ORM.dynamic.identifier_validator import (  # noqa: E402
     InvalidIdentifierError,
     validate_field_name,
     validate_object_name,
@@ -47,28 +68,25 @@ class TestIdentifierValidators:
             validate_object_name(value)
 
 
-class TestFeatureFlag:
-    """The gateway must refuse to operate until the flag is set."""
+class TestResolveSchema:
+    """The Phase 4.B helper accepts either a request or a schema string."""
 
-    def test_select_raises_when_flag_off(self, monkeypatch, stub_request):
-        monkeypatch.delenv("USE_DYNAMIC_GATEWAY", raising=False)
-        from api.ORM.dynamic import dynamic_table
-        with pytest.raises(dynamic_table.DynamicGatewayDisabled):
-            dynamic_table.select(stub_request, "leads", fields=["id"])
+    def test_accepts_pinned_request(self):
+        from api.ORM.dynamic.dynamic_table import _resolve_schema
+        req = SimpleNamespace(tenant_schema="tenant_alpha")
+        assert _resolve_schema(req) == "tenant_alpha"
 
-    def test_insert_raises_when_flag_off(self, monkeypatch, stub_request):
-        monkeypatch.delenv("USE_DYNAMIC_GATEWAY", raising=False)
-        from api.ORM.dynamic import dynamic_table
-        with pytest.raises(dynamic_table.DynamicGatewayDisabled):
-            dynamic_table.insert(stub_request, "leads", {"name": "x"})
+    def test_accepts_schema_string(self):
+        from api.ORM.dynamic.dynamic_table import _resolve_schema
+        assert _resolve_schema("tenant_alpha") == "tenant_alpha"
 
+    def test_rejects_request_with_no_pinned_schema(self):
+        from api.ORM.dynamic.dynamic_table import _resolve_schema
+        req = SimpleNamespace()  # no tenant_schema attribute
+        with pytest.raises(PermissionError, match="pinned tenant schema"):
+            _resolve_schema(req)
 
-class TestPinnedSchemaRequired:
-    """Once the flag is on, the gateway still refuses without a pinned schema."""
-
-    def test_select_requires_pinned_schema(self, monkeypatch, stub_request):
-        monkeypatch.setenv("USE_DYNAMIC_GATEWAY", "1")
-        from api.ORM.dynamic import dynamic_table
-        # No tenant_schema attribute on stub_request.
-        with pytest.raises(PermissionError):
-            dynamic_table.select(stub_request, "leads", fields=["id"])
+    def test_rejects_empty_schema_string(self):
+        from api.ORM.dynamic.dynamic_table import _resolve_schema
+        with pytest.raises(PermissionError, match="empty schema string"):
+            _resolve_schema("")
