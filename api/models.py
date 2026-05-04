@@ -11,16 +11,45 @@ import os
 # app. See `api/tenant_models/__init__.py` for the per-tenant model
 # definitions; they are all managed=False (Django doesn't own their schema).
 from api.tenant_models import (  # noqa: F401  (re-exported for app discovery)
+    # Wave 2 — object metadata + authorization
     PlatformObject,
     Field,
     Profile,
     UserGroup,
     UserGroupUser,
+    UserGroupProfile,
+    UserGroupPublicGroup,
     ObjectPermission,
     FieldPermission,
     TabPermission,
     AppPermission,
     SharingRecord,
+    # Wave 3 — UI / layout
+    App,
+    PageLayout,
+    SearchLayout,
+    Listview,
+    PageBuilder,
+    PageComponent,
+    PageBuilderAssignment,
+    LayoutAssignment,
+    HomepageAssignment,
+    FieldMapping,
+    # Wave 4 — reporting
+    Report,
+    ReportFolder,
+    ReportFolderSharing,
+    Dashboard,
+    DashboardComponent,
+    DashboardFolder,
+    DashboardFolderSharing,
+    DashboardAssignment,
+    # Wave 5 — workflow
+    Workflow,
+    WorkflowNode,
+    WorkflowEdge,
+    PathBuilder,
+    EmailTemplate,
 )
 
 def organization_logo_path(instance, filename):

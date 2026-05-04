@@ -34,16 +34,45 @@ OBJECTS_SQL = REPO_ROOT / "sqlfiles" / "objects.sql"
 # Role and OrganizationWideDefault were removed — see authz.py / sharing.py
 # module docstrings for the rationale (vestigial registry rows).
 EXPECTED_DB_TABLES = {
+    # Wave 2 — object metadata + authorization
     "PlatformObject": "object",
     "Field": "fields",
     "Profile": "profile",
     "UserGroup": "user_group",
     "UserGroupUser": "user_group_users",
+    "UserGroupProfile": "user_group_profiles",
+    "UserGroupPublicGroup": "user_group_public_groups",
     "ObjectPermission": "object_permissions",
     "FieldPermission": "field_permissions",
     "TabPermission": "tab_permissions",
     "AppPermission": "app_permissions",
     "SharingRecord": "sharing_records",
+    # Wave 3 — UI / layout
+    "App": "app",
+    "PageLayout": "page_layouts",
+    "SearchLayout": "search_layouts",
+    "Listview": "listviews",
+    "PageBuilder": "page_builder",
+    "PageComponent": "page_component",
+    "PageBuilderAssignment": "page_builder_assignment",
+    "LayoutAssignment": "layout_assignment",
+    "HomepageAssignment": "homepage_assignment",
+    "FieldMapping": "field_mapping",
+    # Wave 4 — reporting
+    "Report": "report",
+    "ReportFolder": "report_folder",
+    "ReportFolderSharing": "report_folder_sharing",
+    "Dashboard": "dashboard",
+    "DashboardComponent": "dashboard_component",
+    "DashboardFolder": "dashboard_folders",
+    "DashboardFolderSharing": "dashboard_folder_sharing",
+    "DashboardAssignment": "dashboard_assignment",
+    # Wave 5 — workflow
+    "Workflow": "workflow",
+    "WorkflowNode": "workflow_node",
+    "WorkflowEdge": "workflow_edge",
+    "PathBuilder": "path_builder",
+    "EmailTemplate": "email_templates",
 }
 
 
