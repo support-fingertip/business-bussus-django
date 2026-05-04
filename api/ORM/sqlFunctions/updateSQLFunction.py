@@ -17,9 +17,62 @@ from api.ORM.sqlFunctions.createSQLFunction import (
     ensure_leads_name_not_unique,
 )
 from api.ORM.sqlFunctions.utils.helpers import validate_identifier
+from api.permissions._orm_dispatch import dispatch as _dispatch_path
 from api.security.schema_authority import get_validated_schema
 from psycopg2 import sql
 from psycopg2.extras import Json, execute_values
+
+
+def _execute_update_raw(cursor, table_name, record_id, update_fields):
+    """Legacy raw-cursor UPDATE — byte-identical to pre-Phase 4.B.
+
+    Builds the SET clause via ``sql.Identifier`` (already safe in the
+    pre-Phase 4.B code) and executes against the caller's existing
+    cursor + transaction.
+    """
+    set_parts = [
+        sql.SQL("{} = %s").format(sql.Identifier(field))
+        for field in update_fields.keys()
+    ]
+    set_clause = sql.SQL(", ").join(set_parts)
+    query = sql.SQL("UPDATE {} SET {} WHERE id = %s").format(
+        sql.Identifier(table_name), set_clause,
+    )
+    cursor.execute(query, list(update_fields.values()) + [record_id])
+    return cursor.rowcount
+
+
+def _execute_update_orm(schema, table_name, record_id, update_fields):
+    """Gateway-backed UPDATE via ``dynamic_table.update_unchecked``.
+
+    The gateway opens a fresh cursor, but Postgres savepoints live at
+    the connection/transaction level so the caller's outer
+    ``transaction.atomic`` + savepoint flow still rolls back this
+    write on error. ``update_unchecked`` skips field-registry
+    validation because legacy callers stamp system columns
+    (``last_modified_by_id``, etc.) that aren't always in the
+    registry — see the gateway's docstring for the bypass rationale.
+    """
+    from api.ORM.dynamic import dynamic_table
+    return dynamic_table.update_unchecked(
+        schema,
+        table_name,
+        record_id=record_id,
+        patch=update_fields,
+    )
+
+
+def _execute_update(cursor, schema, table_name, record_id, update_fields):
+    """Phase 4.B wave 2 dispatch chokepoint for the UPDATE SQL.
+
+    Both paths return the affected row count.
+    """
+    return _dispatch_path(
+        f"updateSQLFunction.execute_update.{table_name}",
+        raw_impl=lambda: _execute_update_raw(cursor, table_name, record_id, update_fields),
+        orm_impl=lambda: _execute_update_orm(schema, table_name, record_id, update_fields),
+        flag="USE_DYNAMIC_GATEWAY",
+    )
 
 
 def run_raw_query(query, params=None, fetchone=False, fetchall=False, schema='public'):
@@ -565,17 +618,12 @@ def updateRawSQL(object_name, editable_fields=None, section=None, **kwargs):
                         user_id=user_id,
                         pending_history=pending_history,
                     )
-                    # Build SQL using sql.Identifier for column names
-                    set_parts = [sql.SQL("{} = %s").format(sql.Identifier(field)) for field in update_fields.keys()]
-                    set_clause = sql.SQL(', ').join(set_parts)
-                    params = list(update_fields.values()) + [doc_id]
-
-                    update_query = sql.SQL("UPDATE {} SET {} WHERE id = %s").format(
-                        sql.Identifier(table_name),
-                        set_clause
-                    )
-
-                    cursor.execute(update_query, params)
+                    # Phase 4.B wave 2: dispatch the actual UPDATE through
+                    # the dynamic-gateway-backed chokepoint when
+                    # USE_DYNAMIC_GATEWAY is set; otherwise the legacy
+                    # raw-cursor path runs (byte-identical to the
+                    # pre-wave-2 code).
+                    _execute_update(cursor, schema, table_name, doc_id, update_fields)
 
                     # Success — resolve label from prefetched row + the update
                     # we just wrote, avoiding a per-row SELECT.
