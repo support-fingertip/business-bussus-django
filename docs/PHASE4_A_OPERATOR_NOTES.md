@@ -155,7 +155,20 @@ shape" case.
    parser.
 
 Tests skip cleanly when Django isn't installed (matching the
-parity-test pattern). Wire into CI to catch drift on every PR.
+parity-test pattern).
+
+**Wired into CI** via `.github/workflows/structural-tests.yml`
+(added in a follow-up branch). Every PR + push to `main` and
+`claude/**` runs `pytest -m unit -v`, which executes the drift
+tests (and every other unit-marked structural test in the suite)
+in a Django-installed environment so they no longer skip. A
+failing drift test blocks the PR.
+
+The workflow uses dummy `DATABASE_*` env vars to satisfy
+`django.setup()` — unit tests never open a real connection, so
+no live DB is required. Test deps are pinned in
+`requirements-test.txt` (just `pytest` for now; add more
+test-only packages there if/when they're needed).
 
 ### Migrations 0008 + 0009
 

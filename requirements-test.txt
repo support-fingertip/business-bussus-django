@@ -1,0 +1,8 @@
+# Test-only dependencies. Production deploys do not install this file —
+# it's pulled in by CI and local dev only.
+#
+# Add only what the test suite needs to import + run. Things that need
+# a live DB go in tests marked @pytest.mark.integration; for the
+# unit-marked tests (`pytest -m unit`), pure pytest is enough.
+
+pytest==8.3.4

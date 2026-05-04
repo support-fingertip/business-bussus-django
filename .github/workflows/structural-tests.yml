@@ -1,0 +1,81 @@
+name: Structural tests
+
+# Runs the pure-unit test suite (`pytest -m unit`) — no DB required.
+# Catches drift in the Django model registry, the canonical DDL files,
+# the dispatch-flag wiring, and the dynamic-gateway gates.
+#
+# Wired in Phase 4.A specifically to fail PRs that:
+#   * add a Django model without a CREATE TABLE in the canonical DDL
+#     (default_tables.sql, tables.sql, sqlfiles/shared_tables.sql)
+#   * rename a model field without updating the DDL column
+#   * add a model to api.tenant_models without registering it in
+#     EXPECTED_DB_TABLES in the parity test
+#   * misuse the dispatch helper's per-flag routing
+#
+# The unit suite skips cleanly when Django can't boot — but here we
+# install Django, so every unit test should actually run.
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "claude/**"
+
+# Cancel older runs of the same workflow on the same branch when a
+# new commit arrives — saves CI minutes on rapid pushes.
+concurrency:
+  group: structural-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit-tests:
+    name: pytest -m unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-test.txt
+
+      - name: Install dependencies
+        # Production requirements first (Django, channels, rest_framework
+        # etc. all need to be importable for django.setup() to succeed).
+        # Then test-only deps (pytest).
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-test.txt
+
+      - name: Run unit tests
+        # Dummy values for env vars settings.py reads at import time.
+        # No real DB / Redis / Sentry connection is opened by unit
+        # tests — these just need to satisfy `env(...)` lookups so
+        # `django.setup()` succeeds.
+        env:
+          DJANGO_SETTINGS_MODULE: version2.settings
+          DJANGO_ENV: test
+          DEBUG: "False"
+          SECRET_KEY: ci-only-secret-not-for-production-do-not-reuse
+          # JWT secret is validated to be ≥32 chars by settings.py
+          JWT_SECRET_KEY: ci-only-jwt-secret-32-chars-minimum-x
+          SESSION_COOKIE_SECURE: "False"
+          ALLOWED_HOSTS: "localhost,127.0.0.1"
+          DATABASE_NAME: ci_dummy
+          DATABASE_USER: ci_dummy
+          DATABASE_PASSWORD: ci_dummy
+          DATABASE_HOST: localhost
+          DATABASE_PORT: "5432"
+          REDIS_URL: redis://localhost:6379/0
+          OAUTH_TOKEN_ENC_KEY: ""
+        run: |
+          pytest -m unit -v --tb=short
