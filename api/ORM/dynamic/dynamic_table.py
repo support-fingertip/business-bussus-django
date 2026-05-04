@@ -267,6 +267,53 @@ def update(request, object_name: str, *, record_id: str, patch: dict) -> int:
         return cur.rowcount
 
 
+def insert_unchecked(
+    request_or_schema,
+    object_name: str,
+    payload: dict,
+) -> dict:
+    """Phase 4.B wave 3 — INSERT with no metadata-registry validation.
+
+    Mirrors :func:`update_unchecked`: same SQL composition (every
+    identifier through ``sql.Identifier``, every value through
+    ``sql.Placeholder``), same identifier-level safety
+    (``validate_object_name`` + ``validate_field_name`` per key),
+    but skips the registry-membership check.
+
+    Use this for system-stamped writes that include columns the
+    application controls (``created_by_id``, ``created_date``,
+    ``last_modified_by_id``, etc.) — those audit columns are
+    physical but may not be in the field registry, and the
+    registry-enforcing path would reject them.
+
+    Returns the inserted row as a dict (via ``RETURNING *``).
+    """
+    if not payload:
+        raise ValueError("insert_unchecked requires a non-empty payload.")
+
+    schema = _resolve_schema(request_or_schema)
+    validate_object_name(object_name)
+
+    columns = list(payload.keys())
+    for col in columns:
+        validate_field_name(col)
+    values = [payload[c] for c in columns]
+
+    query = sql.SQL(
+        "INSERT INTO {} ({cols}) VALUES ({placeholders}) RETURNING *"
+    ).format(
+        sql.Identifier(object_name),
+        cols=sql.SQL(", ").join(sql.Identifier(c) for c in columns),
+        placeholders=sql.SQL(", ").join([sql.Placeholder()] * len(columns)),
+    )
+    with transaction.atomic(), connection.cursor() as cur:
+        _set_search_path(cur, schema)
+        cur.execute(query, values)
+        cols = [c[0] for c in cur.description]
+        row = cur.fetchone()
+    return dict(zip(cols, row))
+
+
 def update_unchecked(
     request_or_schema,
     object_name: str,
