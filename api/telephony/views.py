@@ -434,8 +434,36 @@ import json
 # Dummy round-robin pointer (replace with Redis in production)
 round_robin_pointers = {}
 
+
+def _landing_number_lookup_raw(telephony_id, landing_number):
+    """Legacy raw-SQL path — byte-identical shape (list of dicts)."""
+    query = (
+        "SELECT group_id, routing_logic FROM landing_numbers "
+        "WHERE telephony_id=%s AND landing_number=%s"
+    )
+    return run_query(query, [telephony_id, landing_number])
+
+
+def _landing_number_lookup_orm(telephony_id, landing_number):
+    """ORM path against the Phase 3.B LandingNumber model.
+
+    Returns the same shape as the raw path so the caller can keep
+    indexing ``result[0]['group_id']`` / ``['routing_logic']``.
+    """
+    from api.tenant_models import LandingNumber
+    row = (
+        LandingNumber.objects
+        .filter(telephony_id=telephony_id, landing_number=landing_number)
+        .values("group_id", "routing_logic")
+        .first()
+    )
+    return [row] if row else []
+
+
 @csrf_exempt
 def telephony_route(request, telephony_id):
+    from api.permissions._orm_dispatch import dispatch as _dispatch_path
+
     if not _verify_voxbay_signature(request):
         return JsonResponse({"error": "Invalid signature"}, status=401)
     logger.info("telephony_route HIT")
@@ -448,9 +476,13 @@ def telephony_route(request, telephony_id):
         if not landing_number:
             return JsonResponse({'error': 'calledNumber missing'}, status=400)
 
-        # Step 1: Get group info
-        query = """SELECT group_id, routing_logic FROM landing_numbers WHERE telephony_id=%s AND landing_number=%s"""
-        result = run_query(query, [telephony_id, landing_number])
+        # Step 1: Get group info — Phase 3.C wave 2 dual-path (USE_ORM_FOR_BL).
+        result = _dispatch_path(
+            "telephony.landing_number_lookup",
+            raw_impl=lambda: _landing_number_lookup_raw(telephony_id, landing_number),
+            orm_impl=lambda: _landing_number_lookup_orm(telephony_id, landing_number),
+            flag="USE_ORM_FOR_BL",
+        )
         if not result:
             return JsonResponse({'error': 'Landing number not configured'}, status=404)
 
