@@ -267,6 +267,57 @@ def update(request, object_name: str, *, record_id: str, patch: dict) -> int:
         return cur.rowcount
 
 
+def update_unchecked(
+    request_or_schema,
+    object_name: str,
+    *,
+    record_id: str,
+    patch: dict,
+) -> int:
+    """Phase 4.B wave 2 — UPDATE with no metadata-registry validation.
+
+    The standard ``update()`` primitive validates every key in
+    ``patch`` against the field registry; that's the gateway's
+    metadata-enforcement contract. ``update_unchecked()`` skips that
+    check.
+
+    Use this for system-stamped writes that mix user fields with
+    columns the application controls (``last_modified_by_id``,
+    ``last_modified_date``, ``deleted_*``, etc.) — those audit
+    columns are physical but may not be in the field registry, and
+    the registry-enforcing path would reject them.
+
+    Identifier-level safety is preserved (``object_name`` and every
+    column name still go through ``validate_*``-style checks before
+    reaching ``sql.Identifier``). The unchecked-ness is specifically
+    "skip the metadata-registry membership check" — every other
+    safety layer is intact.
+    """
+    if not patch:
+        raise ValueError("update_unchecked requires a non-empty patch.")
+    if not record_id:
+        raise ValueError("update_unchecked requires a record_id.")
+
+    schema = _resolve_schema(request_or_schema)
+    validate_object_name(object_name)
+
+    columns = list(patch.keys())
+    for col in columns:
+        validate_field_name(col)
+
+    set_clause = sql.SQL(", ").join(
+        sql.SQL("{} = %s").format(sql.Identifier(c)) for c in columns
+    )
+    query = sql.SQL("UPDATE {} SET {} WHERE id = %s").format(
+        sql.Identifier(object_name), set_clause
+    )
+    params = [patch[c] for c in columns] + [record_id]
+    with transaction.atomic(), connection.cursor() as cur:
+        _set_search_path(cur, schema)
+        cur.execute(query, params)
+        return cur.rowcount
+
+
 def delete(request, object_name: str, *, record_ids: Sequence[str]) -> int:
     """Hard-delete rows by primary key. Returns affected row count."""
     if not record_ids:
