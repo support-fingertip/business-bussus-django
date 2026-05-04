@@ -216,6 +216,45 @@ def select(
         return [dict(zip(cols, row)) for row in cur.fetchall()]
 
 
+def select_raw(
+    request_or_schema,
+    query,
+    params=None,
+):
+    """Phase 4.B wave 4 — thin SELECT executor for pre-composed SQL.
+
+    Unlike ``select()`` (which builds the SQL itself from a fields
+    list + where dict), ``select_raw`` accepts a pre-composed query
+    plus its parameter list and just runs it. Use this when SQL has
+    already been built upstream — the canonical case is the
+    ``getQueryBuilder.build_query`` path where PyPika has produced
+    the final query string.
+
+    The point of routing those reads through the gateway is NOT to
+    re-do the SQL composition (PyPika already handles that safely)
+    but to make the gateway the single chokepoint for cross-cutting
+    concerns: schema-pin enforcement, future statement timeouts,
+    metric emission, retry policy.
+
+    ``query`` may be a plain ``str`` (from PyPika) or a
+    ``psycopg2.sql.Composed`` (from the other gateway primitives).
+    Both work — the cursor accepts either.
+
+    Returns rows as a list of dicts ``{column: value}``. Column-
+    type post-processing (JSON parsing, naive-datetime UTC
+    attachment) is the caller's responsibility — the gateway is
+    intentionally thin here.
+    """
+    schema = _resolve_schema(request_or_schema)
+    params = list(params or [])
+
+    with connection.cursor() as cur:
+        _set_search_path(cur, schema)
+        cur.execute(query, params)
+        cols = [c[0] for c in cur.description]
+        return [dict(zip(cols, row)) for row in cur.fetchall()]
+
+
 def insert(request, object_name: str, payload: dict) -> dict:
     """Insert one row, return the row with its server-generated columns."""
     if not payload:
