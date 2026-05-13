@@ -320,6 +320,28 @@ DATABASES = {
         'PASSWORD': env('DATABASE_PASSWORD'),  # User's password
         'HOST': env("DATABASE_HOST"),                 #'88.222.241.78',             # Hostname (or IP address)
         'PORT': env("DATABASE_PORT"),                  # Port (default for PostgreSQL)
+
+        # Phase 4 part 1: wrap every view in a transaction. Two reasons:
+        #   1. The TenantSchemaMiddleware issues `SET LOCAL search_path`
+        #      and `SET LOCAL ROLE` per request. Those statements only
+        #      hold for the duration of a transaction; without
+        #      ATOMIC_REQUESTS the SET LOCAL is essentially a no-op
+        #      because Django runs each statement in its own implicit
+        #      transaction.
+        #   2. If a view raises mid-write, the transaction rolls back
+        #      cleanly — no half-committed records.
+        # The cost is one BEGIN/COMMIT pair per request, which is
+        # negligible against the multi-statement cost of any real view.
+        'ATOMIC_REQUESTS': True,
+
+        # Phase 4 part 1: don't reuse connections across requests.
+        # The `SET LOCAL` statements reset on transaction end (above),
+        # but a stale `SET` (without LOCAL) on a previous request
+        # could still leak into the next one. CONN_MAX_AGE=0 forces
+        # a fresh connection per request, which is the cleanest
+        # safety net during the rollout. Once pgBouncer is in
+        # place (the 10-risk #7 item), we can revisit.
+        'CONN_MAX_AGE': 0,
     }
 }
 
