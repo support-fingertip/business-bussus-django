@@ -21,6 +21,7 @@ from __future__ import annotations
 from django.contrib.postgres.fields import ArrayField
 from django.db import models
 
+from api.security.encrypted_fields import EncryptedTextField
 from api.tenant_models._base import TenantModel
 
 
@@ -41,8 +42,14 @@ class TelephonyConfig(TenantModel):
     )
 
     status = models.BooleanField(default=True)
-    authtoken = models.CharField(max_length=512, null=True, blank=True)
-    sid = models.CharField(max_length=512, null=True, blank=True)
+    # Phase 3: telephony provider auth credentials. Encrypted at rest via
+    # api.security.token_encryption (ENC1: prefix). The DB column shape
+    # is varchar(512) on existing tenants; the operator MUST ``ALTER COLUMN
+    # ... TYPE text`` on each tenant schema before this rollout because
+    # Fernet ciphertext can exceed 512 chars. See operator notes for the
+    # per-tenant DDL block.
+    authtoken = EncryptedTextField(null=True, blank=True)
+    sid = EncryptedTextField(null=True, blank=True)
 
     created_by_id = models.CharField(max_length=64, null=True, blank=True)
     last_modified_by_id = models.CharField(max_length=64, null=True, blank=True)

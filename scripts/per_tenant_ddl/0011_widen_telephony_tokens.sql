@@ -1,0 +1,41 @@
+-- Per-tenant DDL for migration 0011_encrypt_telephony_tokens
+--
+-- TelephonyConfig is a managed=False model — Django doesn't run DDL
+-- against its tables. Each tenant's schema needs this ALTER applied
+-- BEFORE the encrypted-field code is deployed, because Fernet
+-- ciphertext can exceed the legacy varchar(512) cap and would
+-- otherwise silently truncate.
+--
+-- Usage (operator):
+--
+--   psql $DATABASE_URL <<SQL
+--   DO \$\$
+--   DECLARE
+--       schema_name text;
+--   BEGIN
+--       FOR schema_name IN
+--           SELECT database_schema FROM public.organizations WHERE is_active
+--       LOOP
+--           EXECUTE format(
+--               'ALTER TABLE %I.telephony_config '
+--               'ALTER COLUMN authtoken TYPE text, '
+--               'ALTER COLUMN sid TYPE text;',
+--               schema_name
+--           );
+--       END LOOP;
+--   END\$\$;
+--   SQL
+--
+-- Postgres handles varchar(N) → text without a table rewrite.
+--
+-- Verification per tenant:
+--
+--   SET search_path TO <tenant_schema>;
+--   \d telephony_config
+--   -- Both authtoken and sid should report `text` (not varchar(512)).
+
+-- Single-tenant single-shot (if you'd rather apply per tenant by hand):
+-- SET search_path TO <tenant_schema>;
+ALTER TABLE telephony_config
+    ALTER COLUMN authtoken TYPE text,
+    ALTER COLUMN sid       TYPE text;
