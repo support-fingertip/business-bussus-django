@@ -2835,15 +2835,27 @@ class BusinessLogicHandler:
                     else:
                         name = "Unknown"
                     kwargs["message"] = f"New {another_object} is assigned from {name.strip().capitalize() if name else 'Unknown User'}"
-                    modified_data = {
-                        **create_data,
-                        'created_by_id': user_id,
-                        'last_modified_by_id': user_id,
-                        'created_date': now,
-                        'last_modified_date': now,
-                    }
-                    if create_data.get('app_id'):
-                        modified_data['app_id'] = create_data.get('app_id')
+                    # Phase 8.A8 — replace the naked {**create_data, system_fields}
+                    # spread with an allow-list sanitiser. The previous form
+                    # let a user supply `id`, `owner_id`, `organization_id`,
+                    # `is_deleted` etc. and have them land in the DB; the
+                    # sanitiser drops every key not on the per-tenant
+                    # `fields` allow-list for `task` and layers the system
+                    # fields on top. See api/BL/allowed_fields.py.
+                    from api.BL.allowed_fields import sanitize_create_payload
+                    schema_for_sanitize = kwargs.get('schema') or getattr(
+                        self.request, 'tenant_schema', None
+                    )
+                    modified_data, _dropped = sanitize_create_payload(
+                        create_data,
+                        schema=schema_for_sanitize,
+                        object_name='task',
+                        user_id=user_id,
+                        now=now,
+                    )
+                    # Default the status field if the user didn't supply one
+                    # (and `status` is on the allow-list so it survived the
+                    # sanitisation pass).
                     if not modified_data.get('status'):
                         modified_data['status'] = 'Open'
                     result = post_data_sql('task', modified_data, user=self.request.user, section=self.object_name, enable_lookup_validation=True, **kwargs)
