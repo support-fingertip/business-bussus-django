@@ -116,7 +116,21 @@ DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = env("SECRET_KEY", default='django-insecure-w+hl+it=7)rll5m&ed_m9gtot26^6qx&8164_4*)l*(fq@$3#-')
+# No default — must be set via environment. App fails fast on boot if missing,
+# preventing accidental shipping with the well-known insecure dev key.
+try:
+    SECRET_KEY = env("SECRET_KEY")
+except Exception as _e:
+    raise ValueError(
+        "SECRET_KEY must be set in the environment. Generate one with "
+        "`python -c \"from django.core.management.utils import get_random_secret_key; "
+        "print(get_random_secret_key())\"` and add it to your secrets store."
+    ) from _e
+if len(SECRET_KEY) < 50:
+    raise ValueError(
+        "SECRET_KEY is too short (need >=50 chars). Regenerate with "
+        "django.core.management.utils.get_random_secret_key()."
+    )
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env.bool("DEBUG", default=False)
