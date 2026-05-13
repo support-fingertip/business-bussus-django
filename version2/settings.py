@@ -188,6 +188,10 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     # Correlation ID FIRST so every other middleware's logs carry the trace_id.
     'api.security.correlation.RequestCorrelationMiddleware',
+    # Sentry tag enrichment runs SECOND — Sentry events raised by any
+    # later middleware or view body inherit tenant_id + user_id tags
+    # automatically. No-op if sentry-sdk isn't installed.
+    'api.security.sentry_tags.SentryTenantTagMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
