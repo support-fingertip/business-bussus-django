@@ -2870,16 +2870,33 @@ class BusinessLogicHandler:
                 size = result.get('size')                
                 
                 if not file_path:
-                    raise Exception('Unable to upload file')                   
+                    raise Exception('Unable to upload file')
+                # Phase 8.A8 — sanitise the user-supplied create_data
+                # before merging in our trusted file-metadata fields.
+                # The file upload site is HIGH risk: file uploads have
+                # always been a common privilege-escalation vector
+                # (set is_public=True, set storage_path=/etc/passwd, etc.).
+                from api.BL.allowed_fields import sanitize_create_payload
+                schema_for_sanitize = kwargs.get('schema') or getattr(
+                    self.request, 'tenant_schema', None
+                )
+                safe_user_data, _dropped = sanitize_create_payload(
+                    create_data,
+                    schema=schema_for_sanitize,
+                    object_name='file',
+                    user_id=user_id,
+                    # owner_id is on the system denylist; we set it
+                    # explicitly here via extra_system_fields because
+                    # the file upload flow legitimately assigns ownership.
+                    extra_system_fields={'owner_id': user_id},
+                )
                 modified_data = {
-                    **create_data,
+                    **safe_user_data,
                     'type': result.get("type", "Unknown"),
                     'size': size,
                     'name': name,
                     'file_path': file_path,
-                    'owner_id': user_id,
-                    'created_by_id': user_id
-                }                
+                }
                 response = post_permission(self.request, 'file', create_data=modified_data, **kwargs)
                 return response 
             if self.object_name == 'listview':
