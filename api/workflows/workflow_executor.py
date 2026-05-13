@@ -158,9 +158,19 @@ def execute_workflows(obj: Dict[str, Any], module: str, trigger: str, **kwargs) 
                 return cursor.fetchall()
 
         def _workflows_orm():
+            # Phase 5 adoption: switched from naked .objects.filter()
+            # to .for_tenant(ctx) so the manager re-verifies the
+            # connection's search_path matches the expected schema
+            # before the query runs. The search_path was pinned by
+            # ``previous_search_path = _set_search_path(schema)`` above;
+            # for_tenant catches the case where that pin didn't take
+            # (caller bypassed middleware, pool returned stale state).
             from api.tenant_models import Workflow
+            from api.security.schema_authority import TenantContext
+
+            ctx = TenantContext(org_id=schema, schema=schema, profile_id=None)
             return list(
-                Workflow.objects.filter(
+                Workflow.objects.for_tenant(ctx).filter(
                     trigger_type=trigger, module_name=module
                 ).values_list("id", "name")
             )
