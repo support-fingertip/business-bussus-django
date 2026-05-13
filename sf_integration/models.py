@@ -2,6 +2,8 @@ from django.db import models
 from django.utils.timezone import now
 from datetime import timedelta
 
+from api.security.encrypted_fields import EncryptedCharField
+
 class SalesforceMetadata(models.Model):
     object_name = models.CharField(max_length=255, unique=True)
     fields = models.JSONField()  # Stores field names and types in JSON format
@@ -19,9 +21,12 @@ class SalesforceMetadata(models.Model):
 
 class SalesforceSettings(models.Model):
     username = models.CharField(max_length=255)
-    password = models.CharField(max_length=255)
+    # Phase 3: Salesforce credentials encrypted at rest. max_length bumped
+    # 255 → 1024 to fit Fernet's ~140 char overhead. Django migration
+    # 0002 widens the underlying varchar column.
+    password = EncryptedCharField(max_length=1024)
     client_id = models.CharField(max_length=255)
-    client_secret = models.CharField(max_length=255)
+    client_secret = EncryptedCharField(max_length=1024)
     sync_enabled = models.BooleanField(default=True)  # Enable/disable sync globally
     
     class Meta:

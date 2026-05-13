@@ -164,7 +164,10 @@ class User(AbstractBaseUser, PermissionsMixin):
     last_login = models.DateTimeField(null=True, blank=True)
     
     company = models.CharField(max_length=255, blank=True, null=True)
-    app_password = models.CharField(max_length=128, blank=True, null=True)
+    # Phase 3: SMTP app password encrypted at rest. max_length bumped
+    # 128 → 512 to fit Fernet ciphertext overhead. Migration handles
+    # the ALTER COLUMN.
+    app_password = EncryptedCharField(max_length=512, blank=True, null=True)
     
     is_email_verified = models.BooleanField(default=False)
 
