@@ -155,14 +155,45 @@ class BusinessLogicHandler:
         implement that verb. Callers MUST do an identity check
         (``is NotImplementedForVerb``) — ``None`` is a legitimate
         return value for several legacy paths.
+
+        Phase 5 refinement: passes the TenantContext from the request
+        (populated by ``pin_request_tenant``) into the handler so
+        handlers don't need to pull tenant identity out of
+        ``request.tenant_schema`` ad-hoc.
         """
         from api.BL.handlers import get_handler, NotImplementedForVerb
         cls = get_handler(self.object_name)
         if cls is None:
             return NotImplementedForVerb
-        handler = cls(self.request, self.object_name)
+        # Phase 5: build the TenantContext from the pinned request
+        # attributes. Falls back to None for legacy code paths where
+        # pin_request_tenant hasn't run (background work that calls
+        # BusinessLogicHandler directly). Each domain handler decides
+        # whether None is acceptable for its verb.
+        ctx = self._build_tenant_ctx()
+        handler = cls(self.request, self.object_name, ctx=ctx)
         method = getattr(handler, verb)
         return method(*args, **kwargs)
+
+    def _build_tenant_ctx(self):
+        """Construct a TenantContext from the pinned request attributes.
+
+        Returns ``None`` if the request hasn't been pinned (Celery
+        tasks calling BusinessLogicHandler directly, management
+        commands). Handlers that REQUIRE a context should assert and
+        raise; ones that fall back to legacy behaviour can tolerate
+        ``None``.
+        """
+        schema = getattr(self.request, "tenant_schema", None) or getattr(self.request, "schema", None)
+        if not schema:
+            return None
+        from api.security.schema_authority import TenantContext
+        return TenantContext(
+            org_id=getattr(self.request, "tenant_org_id", None) or "",
+            schema=schema,
+            profile_id=getattr(self.request, "tenant_profile_id", None)
+                       or getattr(self.request, "profile_id", None),
+        )
 
     def get_business_logic(self, **kwargs):
         from api.BL.handlers import NotImplementedForVerb

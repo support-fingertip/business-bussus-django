@@ -7,6 +7,11 @@ from django.utils import timezone
 from django.utils.timezone import now
 import os
 
+# Phase 3 — encrypted-at-rest field types for secret columns
+# (SessionLog.access_token / refresh_token below; future tables follow
+# the same pattern). See docs/security/launch_readiness_plan.md Phase 3.
+from api.security.encrypted_fields import EncryptedCharField
+
 # Re-export tenant-scoped models so Django picks them up under the `api`
 # app. See `api/tenant_models/__init__.py` for the per-tenant model
 # definitions; they are all managed=False (Django doesn't own their schema).
@@ -187,8 +192,13 @@ class SessionLog(models.Model):
     company_name = models.CharField(max_length=255)
     login_time = models.DateTimeField(default=now)
     logout_time = models.DateTimeField(null=True, blank=True)
-    access_token = models.CharField(max_length=500)
-    refresh_token = models.CharField(max_length=500)  # Store refresh token securely
+    # Phase 3: encrypted at rest via api.security.token_encryption (ENC1: prefix).
+    # max_length bumped from 500 → 1024 to fit Fernet's ~140-char overhead on
+    # top of the original token. Legacy (pre-encryption) plaintext rows keep
+    # decoding via decrypt_token's passthrough — see encrypt_legacy_session_tokens
+    # management command for the backfill.
+    access_token = EncryptedCharField(max_length=1024)
+    refresh_token = EncryptedCharField(max_length=1024)
     expiry_time = models.DateTimeField(null=True, blank=True)  # Optional: expiry of the session
     ip_address = models.GenericIPAddressField(null=True, blank=True)  # For IPv4 and IPv6
     latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)  # Latitude

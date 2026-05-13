@@ -88,13 +88,39 @@ class DomainHandler:
     Verbs they don't implement return :data:`NotImplementedForVerb`
     so :class:`api.BL.blcontroller.BusinessLogicHandler` can fall
     back to its legacy inline dispatch.
+
+    Constructor signature
+    ---------------------
+
+    Handlers receive ``(request, object_name, ctx)`` where ``ctx`` is
+    the :class:`TenantContext` populated by
+    :func:`api.security.schema_authority.pin_request_tenant`. The
+    context is the *authoritative* source of tenant identity for the
+    handler — read ``ctx.schema`` / ``ctx.org_id`` / ``ctx.profile_id``
+    instead of pulling from ``request.tenant_schema`` directly.
+
+    Backward compatibility (Phase 5 transition)
+    -------------------------------------------
+
+    During the migration window, ``ctx`` may be ``None`` for code paths
+    that haven't yet been threaded through. New handlers should declare
+    their reliance on ``ctx`` explicitly and raise (via
+    :class:`MissingTenantContext`) if it's missing rather than silently
+    falling back to ``request`` attributes. ``BusinessLogicHandler``
+    already populates ``ctx`` from the request before instantiating
+    handlers; new domain code can rely on it.
     """
 
     OBJECT_NAMES: tuple[str, ...] = ()
 
-    def __init__(self, request, object_name: str):
+    def __init__(self, request, object_name: str, ctx=None):
         self.request = request
         self.object_name = object_name
+        # Phase 5: TenantContext threaded through the handler. During
+        # the migration window, ctx is optional — handlers that need
+        # it should assert; legacy handlers that read request attrs
+        # keep working.
+        self.ctx = ctx
 
     # ----- HTTP verbs --------------------------------------------------
 
