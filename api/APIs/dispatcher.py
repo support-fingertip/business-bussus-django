@@ -70,7 +70,18 @@ class Dispatcher(APIView):
         )
 
         request.user_ = user
-        if request.user_ and not request.user_.get("is_active", True):
+        # Fail-closed authentication gate. The previous form
+        #   `if request.user_ and not request.user_.get("is_active", True)`
+        # failed open in two ways:
+        #   (a) when `user` was None/empty (no user_ → no exception → request
+        #       fell through to pin_request_tenant, which then raised — but
+        #       only because of the tenant check, not because of auth),
+        #   (b) when the user_ dict was missing the `is_active` key
+        #       (default=True silently treated unknown state as active).
+        # Both legs now explicitly deny.
+        if not request.user_:
+            raise PermissionError("Authentication required.")
+        if not request.user_.get("is_active", False):
             raise PermissionError("User account is inactive.")
 
         # Reconcile (user, org, schema, profile_id) against the DB. Any
