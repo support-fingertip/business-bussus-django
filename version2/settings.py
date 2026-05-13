@@ -379,7 +379,13 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'  # Default session storage
-SESSION_COOKIE_SECURE = env("SESSION_COOKIE_SECURE")  # Set to True in production for HTTPS
+# SESSION_COOKIE_SECURE: defaults secure-by-default in production. Overridable
+# via env for local HTTPS testing. See ``Security Settings`` block below for
+# the rest of the cookie/HSTS hardening defaults.
+SESSION_COOKIE_SECURE = env.bool(
+    "SESSION_COOKIE_SECURE",
+    default=(ENVIRONMENT == "production"),
+)
 
 
 # Password validation
@@ -442,13 +448,32 @@ CORS_ALLOW_HEADERS = list(default_headers) +["X-Frontend-URL","SCHEMA"]
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = 'DENY'
-SECURE_HSTS_SECONDS = env.int("SECURE_HSTS_SECONDS", default=0)  # Enable in production
-SECURE_HSTS_INCLUDE_SUBDOMAINS = env.bool("SECURE_HSTS_INCLUDE_SUBDOMAINS", default=False)
-SECURE_HSTS_PRELOAD = env.bool("SECURE_HSTS_PRELOAD", default=False)
-SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=False)
 SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_HTTPONLY = True
-CSRF_COOKIE_SECURE = env.bool("CSRF_COOKIE_SECURE", default=False)  # True in production with HTTPS
+
+# Production-safe defaults for HSTS, SSL redirect, and Secure cookies.
+# Each value can still be overridden via env (useful for local HTTPS testing
+# or for staging environments that do their own TLS termination); but the
+# DEFAULT is "on" once ENVIRONMENT=production, so a misconfigured prod
+# environment doesn't silently ship without HSTS or with insecure cookies.
+_IS_PROD = (ENVIRONMENT == "production")
+SECURE_HSTS_SECONDS = env.int(
+    "SECURE_HSTS_SECONDS",
+    default=31536000 if _IS_PROD else 0,   # 1 year in prod, off elsewhere
+)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = env.bool(
+    "SECURE_HSTS_INCLUDE_SUBDOMAINS",
+    default=_IS_PROD,
+)
+SECURE_HSTS_PRELOAD = env.bool("SECURE_HSTS_PRELOAD", default=_IS_PROD)
+SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=_IS_PROD)
+CSRF_COOKIE_SECURE = env.bool("CSRF_COOKIE_SECURE", default=_IS_PROD)
+
+# Tell Django to trust the X-Forwarded-Proto header when running behind
+# a TLS-terminating reverse proxy (the standard prod topology). Off in
+# non-prod to avoid spoofing risk in environments without a real proxy.
+if _IS_PROD:
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 # OTP security knobs
 OTP_LENGTH = int(os.getenv("OTP_LENGTH", "6"))
