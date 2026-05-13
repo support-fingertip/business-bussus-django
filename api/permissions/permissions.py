@@ -515,15 +515,32 @@ def _get_object_details_orm(table_name, schema, include_setup):
     Caller-cache compatibility: returns ``(id, label)`` for the
     setup=False filter, or ``(id, label, setup)`` when ``include_setup``
     is true. None when not found.
+
+    Phase 5 adoption: uses ``TenantManager.for_tenant(ctx)`` instead of
+    naked ``.objects.filter()``. for_tenant verifies the connection's
+    search_path actually contains ``schema`` before yielding the
+    queryset — a defence-in-depth check against forgotten middleware
+    or pool-state reuse. The previous form trusted the ``SET search_path``
+    above to actually have taken effect; for_tenant re-verifies.
     """
     from api.tenant_models import PlatformObject
+    from api.security.schema_authority import TenantContext
 
     # Defensive search_path pin in case a non-HTTP caller didn't go
-    # through TenantSchemaMiddleware.
+    # through TenantSchemaMiddleware. Now followed by the for_tenant
+    # check which CONFIRMS the pin actually applied.
     with connection.cursor() as cur:
         cur.execute("SET search_path TO %s", [schema])
 
-    qs = PlatformObject.objects.filter(name=table_name)
+    # for_tenant requires a TenantContext. We construct one from the
+    # function's schema arg; org_id isn't available at this call site
+    # (the helper is part of the metadata layer, not the data layer),
+    # so we pass the schema as both the org_id placeholder and the
+    # schema. The org_id field is only used by RLS-aware downstream
+    # code; for this metadata lookup it's a harmless placeholder.
+    ctx = TenantContext(org_id=schema, schema=schema, profile_id=None)
+
+    qs = PlatformObject.objects.for_tenant(ctx).filter(name=table_name)
     if include_setup:
         row = qs.values_list("id", "label", "setup").first()
     else:
@@ -560,10 +577,19 @@ def _profile_has_admin_access_raw(profile_id, schema):
 
 
 def _profile_has_admin_access_orm(profile_id, schema):
+    """Phase 5 adoption: uses TenantManager.for_tenant(ctx) instead of
+    naked .objects.filter(). The search_path SET above is paired with
+    for_tenant's verification — if the pin didn't take (e.g. an
+    unfamiliar code path bypassed middleware), for_tenant raises
+    TenantContextMismatch instead of silently scanning the wrong schema."""
     from api.tenant_models import Profile
+    from api.security.schema_authority import TenantContext
+
     with connection.cursor() as cur:
         cur.execute("SET search_path TO %s", [schema])
-    return Profile.objects.filter(
+
+    ctx = TenantContext(org_id=schema, schema=schema, profile_id=profile_id)
+    return Profile.objects.for_tenant(ctx).filter(
         id=profile_id, profile_type__in=ADMIN_ROLES
     ).exists()
 
