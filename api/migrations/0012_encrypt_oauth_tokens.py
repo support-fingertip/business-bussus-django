@@ -30,7 +30,9 @@ import api.security.encrypted_fields
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("api", "0010_encrypt_session_log_tokens"),
+        # final-bussiness-backend merge: renumbered from 0011 → 0012
+        # because A1 (telephony) also used 0011. Dependency walks 0010 → 0011 → 0012.
+        ("api", "0011_encrypt_telephony_tokens"),
     ]
 
     operations = [
