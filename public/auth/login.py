@@ -36,7 +36,24 @@ class CustomUser:
 
 
 @method_decorator(csrf_exempt, name='dispatch')
-@method_decorator(ratelimit(key='ip', rate='5/m', method='POST'), name='dispatch')
+# Phase 8.A7 — rate limit fixes:
+#   * block=True so the decorator returns 429 itself (the previous
+#     form without block=True silently set request.limited and the
+#     view never checked, making the decorator a no-op).
+#   * Stacked ip + post:username keys. IP-only is bypassed by
+#     residential-proxy rotation; per-username catches credential
+#     stuffing against a single account from rotating sources.
+#   * 5/m → 20/h per IP feels generous, but combined with the
+#     per-username 5/h limit + progressive lockout it bounds the
+#     attacker.
+@method_decorator(
+    ratelimit(key='ip', rate='20/h', method='POST', block=True),
+    name='dispatch',
+)
+@method_decorator(
+    ratelimit(key='post:username', rate='5/h', method='POST', block=True),
+    name='dispatch',
+)
 class LoginView(View):
     def post(self, request, *args, **kwargs):
         try:
@@ -45,10 +62,22 @@ class LoginView(View):
             data = json.loads(request.body)
             username = data.get('username')
             password = data.get('password')
-            
+
             # Validate required fields
             if not username or not password:
                 return JsonResponse({'error': 'Username and password are required.'}, status=400)
+
+            # Phase 8.A7 — progressive lockout. Even if the per-IP +
+            # per-username rate limits are bypassed, an account that
+            # has hit the failed-attempt threshold within the rolling
+            # window is locked for AUTH_LOCKOUT_MINUTES. Message is
+            # intentionally vague (no enumeration leak).
+            from public.auth.lockout import is_locked_out, lockout_response_payload
+            if is_locked_out(username):
+                return JsonResponse(
+                    lockout_response_payload(username),
+                    status=429,
+                )
             
             channel = get_channel_layer()
             cursor = connection.cursor()

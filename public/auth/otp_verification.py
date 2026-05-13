@@ -109,7 +109,24 @@ def _anti_enum_response():
     # Always ambiguous to prevent user/email enumeration
     return JsonResponse({"ok": True, "message": "If the email is valid, a code has been sent."})
 
-@ratelimit(key='ip', rate='5/m', method='POST')
+
+# Phase 8.A7 — django-ratelimit key extracted from the JSON request
+# body so we can stack a per-email rate limit on top of the per-IP
+# one. Returns empty string on parse failure (callers should still
+# return 400 in the body of their view; this key just falls through).
+def _email_from_body(group, request):
+    try:
+        body = json.loads(request.body.decode())
+        return (body.get("email") or "").strip().lower()
+    except Exception:
+        return ""
+
+
+# Phase 8.A7 — block=True so the decorator returns 429 itself; the
+# previous form without block=True silently set request.limited and
+# the view never checked. Stacked IP + per-email keys.
+@ratelimit(key='ip', rate='5/m', method='POST', block=True)
+@ratelimit(key=_email_from_body, rate='5/h', method='POST', block=True)
 def start_otp(request: HttpRequest):
     if request.method != "POST":
         return JsonResponse({"error": "POST only"}, status=405)
@@ -176,7 +193,7 @@ def start_otp(request: HttpRequest):
     # Return opaque id only
     return JsonResponse({"ok": True, "verification_id": verification_id})
 
-@ratelimit(key='ip', rate='10/m', method='POST')
+@ratelimit(key='ip', rate='10/m', method='POST', block=True)
 def verify_otp(request: HttpRequest):
     if request.method != "POST":
         return JsonResponse({"error": "POST only"}, status=405)
@@ -249,7 +266,7 @@ def verify_otp(request: HttpRequest):
         "verification_proof": verification_proof  # keep private; send via HTTPS only
     })
 
-@ratelimit(key='ip', rate='3/m', method='POST')
+@ratelimit(key='ip', rate='3/m', method='POST', block=True)
 def resend_otp(request: HttpRequest):
     if request.method != "POST":
         return JsonResponse({"error": "POST only"}, status=405)

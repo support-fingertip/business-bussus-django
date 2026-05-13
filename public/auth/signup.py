@@ -32,7 +32,11 @@ def _redact_payload(payload: dict) -> dict:
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
-@ratelimit(key="ip", rate="30/h", method="POST")  # adjust as needed
+# Phase 8.A7 — block=True so signup spam is actually rejected at 429.
+# 30/h per IP is the cap for the public signup endpoint (a fresh
+# customer onboarding 30 users in an hour from one IP is plausible;
+# 31 is suspicious).
+@ratelimit(key="ip", rate="30/h", method="POST", block=True)
 def signup_with_proof(request):
     if request.content_type != "application/json":
         return Response(

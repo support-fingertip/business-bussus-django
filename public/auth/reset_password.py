@@ -7,8 +7,23 @@ from django_ratelimit.decorators import ratelimit
 
 from public.auth.utils import ensure_verified_and_consume, validate_proof
 
+def _email_from_body(group, request):
+    """django-ratelimit key extracted from the JSON body."""
+    try:
+        body = json.loads(request.body.decode())
+        return (body.get("email") or "").strip().lower()
+    except Exception:
+        return ""
+
+
 @csrf_exempt
-@ratelimit(key='ip', rate='3/h', method='POST')
+# Phase 8.A7 — block=True (was a no-op without it). Stacked IP +
+# per-email keys: 3 password resets per hour per IP, 3 per hour per
+# email. Generous enough for legitimate "I keep forgetting" users,
+# tight enough that spamming an account's owner with reset emails
+# isn't free.
+@ratelimit(key='ip', rate='10/h', method='POST', block=True)
+@ratelimit(key=_email_from_body, rate='3/h', method='POST', block=True)
 def set_password_with_proof(request):
     if request.method != "POST":
         return JsonResponse({"error": "POST only"}, status=405)

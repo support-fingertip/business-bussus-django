@@ -438,6 +438,31 @@ CORS_ALLOWED_ORIGINS = [
 
 CORS_ALLOW_HEADERS = list(default_headers) +["X-Frontend-URL","SCHEMA"]
 
+# -------------------------------
+# Rate limiting (django-ratelimit) — Phase 8.A7
+# -------------------------------
+# The auth views (login, OTP, password reset, signup) already use the
+# @ratelimit decorator, but historically without block=True they only
+# set request.limited and never enforced. The Phase 8.A7 branch flipped
+# every decorator to block=True so the library issues the 429 itself.
+#
+# RATELIMIT_ENABLE defaults to True in django-ratelimit; we set it
+# explicitly so an operator can disable rate limiting (e.g. for load
+# testing) without code edits — RATELIMIT_ENABLE=0 in the env.
+#
+# RATELIMIT_USE_CACHE points at the Redis backend already defined in
+# CACHES['default'] above. This means rate-limit counters survive a
+# single worker process restart (in-memory counters wouldn't).
+RATELIMIT_ENABLE = env.bool("RATELIMIT_ENABLE", default=True)
+RATELIMIT_USE_CACHE = "default"
+# Progressive-lockout thresholds (consumed by public.auth.lockout).
+# After N failed logins in WINDOW_MINUTES, the account is rejected for
+# LOCKOUT_MINUTES. Numbers chosen to be aggressive against brute-force
+# while not punishing a user who fumbles their password a few times.
+AUTH_LOCKOUT_THRESHOLD = env.int("AUTH_LOCKOUT_THRESHOLD", default=5)
+AUTH_LOCKOUT_WINDOW_MINUTES = env.int("AUTH_LOCKOUT_WINDOW_MINUTES", default=15)
+AUTH_LOCKOUT_MINUTES = env.int("AUTH_LOCKOUT_MINUTES", default=15)
+
 # Security Settings
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
