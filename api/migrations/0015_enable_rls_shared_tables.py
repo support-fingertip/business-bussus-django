@@ -120,7 +120,9 @@ ALTER TABLE public.lead_capture DISABLE ROW LEVEL SECURITY;
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("api", "0012_add_organization_id_to_shared_tables"),
+        # final-bussiness-backend merge: renumbered from 0013 → 0015 to
+        # chain after the renumbered 0014 (add organization_id columns).
+        ("api", "0014_add_organization_id_to_shared_tables"),
     ]
 
     operations = [

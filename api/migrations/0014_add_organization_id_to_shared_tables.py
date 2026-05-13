@@ -36,7 +36,10 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("api", "0011_encrypt_user_app_password"),
+        # final-bussiness-backend merge: renumbered from 0012 → 0014.
+        # A1 took 0011 (telephony); A2 became 0012 (oauth); A3 became 0013
+        # (user_app_password). Phase 4 part 2 chains after all three.
+        ("api", "0013_encrypt_user_app_password"),
     ]
 
     operations = [
