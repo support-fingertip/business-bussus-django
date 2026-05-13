@@ -191,6 +191,12 @@ class User(AbstractBaseUser, PermissionsMixin):
 class SessionLog(models.Model):
     id = models.CharField(max_length=64, primary_key=True, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="sessions")
+    # Phase 4 part 2: organization_id is the predicate Row-Level
+    # Security uses to decide which rows a given tenant role can see.
+    # Nullable initially so the migration can run before the backfill;
+    # the backfill command + a follow-up NOT NULL migration close the loop.
+    # Indexed because the RLS policy filters on it on every query.
+    organization_id = models.CharField(max_length=64, null=True, blank=True, db_index=True)
     profile_id = models.CharField(max_length=20, null=False)
     company_name = models.CharField(max_length=255)
     login_time = models.DateTimeField(default=now)
@@ -226,6 +232,11 @@ class SessionLog(models.Model):
 class UserLoginHistory(models.Model):
     id = models.CharField(max_length=64, primary_key=True, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
+    # Phase 4 part 2: organization_id for RLS scoping. Nullable on the
+    # initial migration so backfill can run; tightened to NOT NULL in
+    # a follow-up migration after backfill completes. See
+    # ``backfill_organization_id`` management command.
+    organization_id = models.CharField(max_length=64, null=True, blank=True, db_index=True)
     login_time = models.DateTimeField(auto_now_add=True)
     ip_address = models.GenericIPAddressField(null=True, blank=True)
     login_type = models.CharField(max_length=50, choices=[('success', 'Success'), ('failed', 'Failed')], default='success')
