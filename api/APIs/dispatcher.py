@@ -18,6 +18,14 @@ from api.security.object_whitelist import (
 )
 from channels.layers import get_channel_layer
 
+# Phase 8.1 — file upload validation failure → 400.
+# ValidationError is raised by utils.file_validation.validate_upload
+# when an upload fails size / MIME / filename checks. The message is
+# safe to surface ("File too large", "Disallowed MIME type") — it
+# doesn't leak internal state, and the user needs to know which rule
+# they violated.
+from utils.file_validation import ValidationError as _UploadValidationError
+
 logger = logging.getLogger(__name__)
 
 
@@ -151,6 +159,10 @@ class Dispatcher(APIView):
             return Response(data=result, status=200)
         except PermissionError as e:
             return Response({"message": str(e)}, status=403)
+        except _UploadValidationError as e:
+            # File upload rejected by validate_upload (size/MIME/name).
+            # The message is intentionally user-facing.
+            return Response({"message": str(e)}, status=400)
         except Exception as e:
             return _safe_500(e, request, "GET")
 
@@ -183,6 +195,10 @@ class Dispatcher(APIView):
             return Response(data=result, status=201)
         except PermissionError as e:
             return Response({"message": str(e)}, status=403)
+        except _UploadValidationError as e:
+            # File upload rejected by validate_upload (size/MIME/name).
+            # The message is intentionally user-facing.
+            return Response({"message": str(e)}, status=400)
         except Exception as e:
             return _safe_500(e, request, "POST")
 
@@ -206,6 +222,10 @@ class Dispatcher(APIView):
             return Response(data=result, status=200)
         except PermissionError as e:
             return Response({"message": str(e)}, status=403)
+        except _UploadValidationError as e:
+            # File upload rejected by validate_upload (size/MIME/name).
+            # The message is intentionally user-facing.
+            return Response({"message": str(e)}, status=400)
         except Exception as e:
             return _safe_500(e, request, "PATCH")
 
@@ -227,5 +247,9 @@ class Dispatcher(APIView):
             return Response(data=result, status=200)
         except PermissionError as e:
             return Response({"message": str(e)}, status=403)
+        except _UploadValidationError as e:
+            # File upload rejected by validate_upload (size/MIME/name).
+            # The message is intentionally user-facing.
+            return Response({"message": str(e)}, status=400)
         except Exception as e:
             return _safe_500(e, request, "DELETE")
