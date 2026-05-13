@@ -144,10 +144,34 @@ class BusinessLogicHandler:
         self.object_name = object_name
         self.channel = get_channel_layer()
 
+    def _try_registered_handler(self, verb, *args, **kwargs):
+        """Wave 1 of the god-file split — check the per-domain handler
+        registry before falling through to the legacy inline dispatch.
+
+        Returns the handler's result if a registered handler implements
+        the verb; returns the sentinel ``NotImplementedForVerb`` if no
+        handler is registered or the registered handler doesn't
+        implement that verb. Callers MUST do an identity check
+        (``is NotImplementedForVerb``) — ``None`` is a legitimate
+        return value for several legacy paths.
+        """
+        from api.BL.handlers import get_handler, NotImplementedForVerb
+        cls = get_handler(self.object_name)
+        if cls is None:
+            return NotImplementedForVerb
+        handler = cls(self.request, self.object_name)
+        method = getattr(handler, verb)
+        return method(*args, **kwargs)
+
     def get_business_logic(self, **kwargs):
+        from api.BL.handlers import NotImplementedForVerb
+        result = self._try_registered_handler("get", **kwargs)
+        if result is not NotImplementedForVerb:
+            return result
+
         another_object = kwargs.get('object_name')
-        id = self.request.GET.get('id') 
-        param3 = kwargs.get('param3')    
+        id = self.request.GET.get('id')
+        param3 = kwargs.get('param3')
         profile_id = kwargs.get('profile_id')
         user_id = kwargs.get('user_', {}).get('id')
         if self.object_name == 'listview':
@@ -1832,23 +1856,8 @@ class BusinessLogicHandler:
                 if selected_object:
                     filters = [{"field": "selected_object","operator": "=","value": selected_object}]
                 return get_permissions(self.request, tableName="email_templates", where=filters, **kwargs)
-        elif self.object_name == 'task':
-            if id:
-                try:
-                    tasks = get_permissions(
-                        self.request,
-                        tableName='task',
-                        id=id,
-                        fields = ['assigned_to_id', 'due_date', 'status', 'subject', 'related_to_object_id', 'assigned_to.name', 'created_date', 'last_modified_date', 'created_by_id', 'last_modified_by_id', 'created_by.name', 'last_modified_by.name'],
-                        **kwargs
-                    ).get('data', [])
-                    return tasks
-                except Exception as e:
-                    print(str(e))
-                    raise Exception(str(e))
-                
-            tasks = get_related_tasks(id=id, **kwargs)
-            return tasks      
+        # ``task`` GET handled by api.BL.handlers.task.TaskHandler — see
+        # the registry check at the top of get_business_logic.
 
         elif self.object_name == 'notifications':
             limit = self.request.GET.get("limit",10)
@@ -4335,7 +4344,18 @@ class BusinessLogicHandler:
     
 
 
-    def patch_business_logic(self, data, **kwargs):        
+    def patch_business_logic(self, data, **kwargs):
+        from api.BL.handlers import NotImplementedForVerb
+        # Wave 1 of god-file split: registered domain handlers get
+        # first crack. PATCH receives ``data.get('data')`` so the
+        # registered handler sees the same payload shape the legacy
+        # branches did.
+        registered = self._try_registered_handler(
+            "patch", data.get("data"), **kwargs,
+        )
+        if registered is not NotImplementedForVerb:
+            return registered
+
         update_data_ = data.get('data')
         another_object = kwargs.get('another_object')
         param3 = kwargs.get('param3')
@@ -4431,13 +4451,10 @@ class BusinessLogicHandler:
                 if validation_result['warnings']:
                     print(f"[WARNING] Filter logic warnings: {validation_result['warnings']}")
             return patch_permission(self.request, 'listviews', update_data = update_data_, setup_check=False, **kwargs)
-        
-        elif self.object_name == 'task':
-            update_data_['last_modified_by_id'] = user_id
-            update_data_['last_modified_date'] = datetime.now()
 
-            return patch_permission(self.request,self.object_name,update_data=update_data_, **kwargs)
-        
+        # ``task`` PATCH handled by api.BL.handlers.task.TaskHandler — see
+        # the registry check at the top of patch_business_logic.
+
         elif self.object_name == 'file':
             # file = self.request.FILES.get('file')            
             
