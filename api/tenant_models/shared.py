@@ -31,6 +31,8 @@ from __future__ import annotations
 
 from django.db import models
 
+from api.security.encrypted_fields import EncryptedTextField
+
 
 class LeadCapture(models.Model):
     """``lead_capture`` — Facebook Lead Ads capture configuration (shared).
@@ -47,7 +49,10 @@ class LeadCapture(models.Model):
     lead_page_name = models.CharField(max_length=255, null=True, blank=True)
     lead_form_id = models.CharField(max_length=255, db_index=True, null=True, blank=True)
     lead_form_name = models.CharField(max_length=255, null=True, blank=True)
-    page_access_token = models.TextField(null=True, blank=True)
+    # Phase 3: Facebook page access token — encrypted at rest. Read access
+    # decrypts transparently via decrypt_token(); writes encrypt via
+    # EncryptedTextField.get_prep_value.
+    page_access_token = EncryptedTextField(null=True, blank=True)
     form_status = models.CharField(max_length=64, null=True, blank=True)
     field_mapping = models.JSONField(null=True, blank=True)
     task_status = models.CharField(max_length=64, null=True, blank=True)

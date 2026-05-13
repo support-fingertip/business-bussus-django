@@ -164,8 +164,10 @@ class _UserOAuthTokenBase(TenantModel):
 
     id = models.CharField(max_length=64, primary_key=True)
     user_id = models.CharField(max_length=64, unique=True)
-    access_token = models.TextField(null=True, blank=True)
-    refresh_token = models.TextField(null=True, blank=True)
+    # Phase 3: OAuth provider tokens — encrypted at rest. token_type
+    # (e.g. "Bearer") is non-sensitive and stays plaintext.
+    access_token = EncryptedTextField(null=True, blank=True)
+    refresh_token = EncryptedTextField(null=True, blank=True)
     token_type = models.TextField(null=True, blank=True)
     expires_in = models.IntegerField(null=True, blank=True)
     expiry_time = models.DateTimeField(null=True, blank=True)
