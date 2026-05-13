@@ -20,7 +20,6 @@ from api.BL.dashboards.dashboard import get_dashboards
 from api.BL.home.home import get_home_page
 from api.BL.utils import construct_filters
 from api.BL.whatsapp.utils import post_whatsapp
-from public.utils.apps.apps import create_app
 from public.utils.objects.builk_object_creation import create_bulk_objects
 from utils.filter_logic_validator import validate_filter_logic
 from .whatsapp.whatsapp import WhatsAppService
@@ -2598,8 +2597,6 @@ class BusinessLogicHandler:
                 objectid = self.request.GET.get("objectid")
                 calls = get_permissions(self.request,tableName="call_logs",where=[{"field":"object_id","operator":"=","value":objectid}],**kwargs).get("data")
                 return calls
-        elif self.object_name == "test_trigger":
-            return create_app('Ic2di7G72HEviqQpWV','organization_')  
         # Add your GET-specific logic here
         result = get_permissions(self.request, tableName=self.object_name, id=id, **kwargs)
         if result.get('data'):  # ✅ If permission-based retrieval returns data, return it
