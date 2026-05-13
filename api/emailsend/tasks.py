@@ -6,6 +6,13 @@ from datetime import datetime
 from api.telephony.views import run_query
 from api.security.tenant_context import tenant_schema_required
 
+# Phase 6 adoption: AdminTask is the explicit opt-out base for tasks
+# that legitimately span multiple tenants. send_notify_email_verification
+# below scans public.users across every org and needs that capability;
+# the AdminTask base makes the cross-tenant intent visible in the
+# decorator (and in every PR that adds a new admin task).
+from api.celery_tasks.base import AdminTask
+
 from channels.layers import get_channel_layer
 from ..notifications.notify import trigger_notication
 
@@ -107,13 +114,27 @@ def get_user_by_id(user_id):
 
 BATCH_SIZE = 100
 
-@shared_task
+@shared_task(base=AdminTask)
 def send_notify_email_verification():
     """Email-verification reminder sweep.
 
-    Reads ``public.users`` (cross-tenant) — does NOT need a tenant
-    pin. The query is explicitly schema-qualified with ``public.``
-    so it's safe regardless of the connection's current search_path.
+    Reads ``public.users`` across EVERY tenant. The query is
+    explicitly schema-qualified with ``public.`` so it's safe
+    regardless of the connection's current search_path.
+
+    Phase 6 adoption note: this task uses the AdminTask base
+    (not TenantRequiredTask) because it legitimately runs across
+    every tenant. Every new AdminTask must have a docstring
+    justifying the cross-tenant scope and a security review on
+    the PR. See ``docs/SEC_PHASE6_ADOPTION_OPERATOR_NOTES.md``.
+
+    SECURITY: now that Phase 4 part 2 enables RLS on public.users,
+    this task only sees rows when running as a role with BYPASSRLS
+    (the main bussus_app role) OR when the policy returns true
+    (i.e. ``app.current_org_id`` matches each row's organization_id).
+    Today the main role bypasses, so the loop reads every tenant's
+    user. When Phase 4 part 3 flips FORCE on, this task will need
+    to explicitly iterate orgs and pin per-iteration.
     """
     print("Starting email verification reminders...")
     offset = 0
