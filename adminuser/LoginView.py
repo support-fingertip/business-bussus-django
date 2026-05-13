@@ -96,22 +96,64 @@ class LoginView(View):
                     }
                     response = JsonResponse(response_data, status=HTTP_200_OK)
 
-                    # Perform the background operations (logging) using Celery task
+                    # Phase 6 adoption: log_user_login_async is now a
+                    # TenantRequiredTask. The login flow runs BEFORE the
+                    # tenant middleware (the JWT doesn't exist yet at
+                    # login start), so we build a TenantContext explicitly
+                    # from the row we just looked up.
+                    #
+                    # The org_id from the DB lookup is authoritative — it
+                    # came from the JOIN on the user row, not from a
+                    # JWT claim. So it's safe to pass directly.
                     try:
-                        log_user_login_async.delay(
-                            user_id=user_id,
-                            profile_id=profile_id,
-                            company_name=company_name,
-                            ip=ip,
-                            location=location,
-                            browser=browser,
-                            platform=platform,
-                            client_version=data.get('client_version'),
-                            api_type=data.get('api_type'),
-                            api_version=data.get('api_version', '1.0'),
-                            login_url=login_url,
-                            access_token=str(access_token),
-                            refresh_token=str(refresh)
+                        from api.celery_tasks.base import serialize_ctx
+                        from api.security.schema_authority import TenantContext
+                        from django.db import connection as _conn
+
+                        # Phase 6 adoption: TenantRequiredTask needs a
+                        # TenantContext, which needs the org's schema name.
+                        # The user-lookup query above doesn't JOIN
+                        # organizations; one extra round-trip to fetch it.
+                        # On hot login paths this is acceptable (login is
+                        # already a multi-statement flow).
+                        with _conn.cursor() as _c:
+                            _c.execute(
+                                "SELECT database_schema FROM public.organizations WHERE id = %s",
+                                [organization_id],
+                            )
+                            _row = _c.fetchone()
+                            schema_for_ctx = _row[0] if _row else None
+
+                        if not schema_for_ctx:
+                            logger.error(
+                                "Cannot queue log_user_login_async: "
+                                "no schema for org %s",
+                                organization_id,
+                            )
+                            raise RuntimeError("no schema for org")
+
+                        tenant_ctx = TenantContext(
+                            org_id=str(organization_id),
+                            schema=schema_for_ctx,
+                            profile_id=str(profile_id) if profile_id else None,
+                        )
+                        log_user_login_async.apply_async(
+                            kwargs={
+                                "_tenant_ctx": serialize_ctx(tenant_ctx),
+                                "user_id": user_id,
+                                "profile_id": profile_id,
+                                "company_name": company_name,
+                                "ip": ip,
+                                "location": location,
+                                "browser": browser,
+                                "platform": platform,
+                                "client_version": data.get('client_version'),
+                                "api_type": data.get('api_type'),
+                                "api_version": data.get('api_version', '1.0'),
+                                "login_url": login_url,
+                                "access_token": str(access_token),
+                                "refresh_token": str(refresh),
+                            },
                         )
                     except Exception as e:
                         # Log error but don't fail the login

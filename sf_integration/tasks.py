@@ -5,6 +5,11 @@ from sf_integration.salesforce_client import sync_metadata_and_data
 from sync_salesforce import DB_CONFIG, sync_to_salesforce
 from .models import SalesforceSync
 
+# Phase 6 adoption: AdminTask is the explicit opt-out base for tasks
+# that legitimately span multiple tenants (e.g. nightly sync sweeps).
+# Using it makes the cross-tenant intent visible in every PR.
+from api.celery_tasks.base import AdminTask
+
 # NOTE for tenant context:
 # `SalesforceSync` lives in `public` (Django-managed model), so the
 # top-level scan does not need a tenant pin. However, the per-object
@@ -12,8 +17,17 @@ from .models import SalesforceSync
 # `sf_integration_<object>` tables; those callers MUST open a
 # `with_tenant_schema(...)` context for the relevant org before
 # touching them. See `api.security.tenant_context`.
+#
+# Phase 6 adoption FOLLOW-UP: the inner loop `sync_salesforce_object`
+# does NOT currently open `with_tenant_schema` before calling
+# `copy_salesforce_data_to_app`. That's a gap — under Phase 4 part 1
+# (per-tenant Postgres roles), the inner writes against
+# `sf_integration_<object>` either need to run as the main role OR be
+# wrapped in a tenant pin. Tracked in
+# docs/SEC_PHASE6_ADOPTION_OPERATOR_NOTES.md as a Phase 6+ follow-up.
 
-@shared_task
+
+@shared_task(base=AdminTask)
 def process_salesforce_sync():
     sync_objects = SalesforceSync.objects.filter(is_enabled=True)
 
