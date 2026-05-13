@@ -363,6 +363,25 @@ try:
 except Exception as e:
     raise ValueError(f"Critical security configuration error: {e}. Please set JWT_SECRET_KEY in environment variables.")
 
+# SCHEMA_AUTHORITY_ENFORCE controls whether ``assert_pinned_schema`` raises
+# on cross-tenant kwarg mismatches (value "1") or merely logs them
+# (value "0"). The "0" setting exists only as a transitional escape hatch
+# during the schema-authority rollout and MUST NOT be used in production
+# — log-only mode permits cross-tenant access to slip through.
+#
+# Refusing to start with the wrong value (instead of just relying on it
+# being set correctly in deployment) prevents an operator accident from
+# silently disabling the enforcement.
+_schema_authority_enforce = os.getenv("SCHEMA_AUTHORITY_ENFORCE", "1")
+if ENVIRONMENT == "production" and _schema_authority_enforce != "1":
+    raise ValueError(
+        "SCHEMA_AUTHORITY_ENFORCE must be '1' in production "
+        "(found %r). Log-only mode (value '0') is a development/soak "
+        "escape hatch only — running production without enforcement "
+        "leaves cross-tenant access guarded by app-layer logs alone."
+        % _schema_authority_enforce
+    )
+
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60*12),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
