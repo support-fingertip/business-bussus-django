@@ -113,7 +113,31 @@ class TenantSchemaMiddleware(MiddlewareMixin):
                 cur.execute("SET LOCAL search_path TO %s, public", [schema])
                 request._tenant_search_path_set = True
 
-                # Phase 4: also assume the per-tenant role. ``SET LOCAL
+                # Phase 4 part 2: pin the current org id as a session
+                # variable so Row-Level Security policies on the shared
+                # public tables (organizations, users, user_login_history,
+                # session_log, lead_capture) can use it as the predicate:
+                #
+                #   USING (organization_id = current_setting('app.current_org_id'))
+                #
+                # The value comes from request.tenant_org_id which
+                # schema_authority.pin_request_tenant set after
+                # reconciling the JWT against the DB. Falls back to
+                # the schema name if tenant_org_id isn't populated
+                # (older code paths) — in that case the policy returns
+                # 0 rows because no row will match a schema-name value
+                # in the organization_id column. Fail-closed.
+                org_id_for_rls = (
+                    getattr(request, "tenant_org_id", None)
+                    or schema
+                )
+                cur.execute(
+                    "SET LOCAL app.current_org_id = %s",
+                    [str(org_id_for_rls)],
+                )
+                request._tenant_org_id_set = True
+
+                # Phase 4 part 1: also assume the per-tenant role. ``SET LOCAL
                 # ROLE`` requires the application's main role to be
                 # GRANTed membership in tenant_<schema>_role; that
                 # grant lives in provision_tenant_role.sql.
@@ -169,13 +193,20 @@ class TenantSchemaMiddleware(MiddlewareMixin):
         the request didn't run in a transaction (e.g. some
         background-task entry points).
         """
-        if getattr(request, "_tenant_role_set", False) or \
-                getattr(request, "_tenant_search_path_set", False):
+        if (
+            getattr(request, "_tenant_role_set", False)
+            or getattr(request, "_tenant_org_id_set", False)
+            or getattr(request, "_tenant_search_path_set", False)
+        ):
             try:
                 with connection.cursor() as cur:
                     # RESET ROLE returns to the connection's session role
                     # (the main application role).
                     cur.execute("RESET ROLE")
+                    # Clear the RLS-keyed setting so a pooled connection
+                    # picked up by the next request doesn't inherit an
+                    # org id from us.
+                    cur.execute("RESET app.current_org_id")
                     cur.execute("SET search_path TO public")
             except Exception:
                 # Connection pool will close / recycle on its own if
