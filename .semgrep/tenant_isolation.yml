@@ -1,0 +1,163 @@
+# Semgrep rules — tenant isolation
+#
+# Run locally:    semgrep --config=.semgrep/tenant_isolation.yml api/
+# In CI:          treat any finding as a hard failure on protected branches.
+#
+# These rules implement the L2/L3 layer of the isolation contract
+# (docs/security/isolation_contract.md). They are intentionally strict
+# during the migration window — exemptions live alongside the file
+# being exempted in a `nosemgrep:` line, and require review.
+#
+# This file lives on the planning-docs branch as the SOURCE OF TRUTH
+# for the rules. Phase 5 wires it into pre-commit and CI.
+
+rules:
+  - id: forbid-naked-objects
+    pattern-either:
+      - pattern: $MODEL.objects.all(...)
+      - pattern: $MODEL.objects.filter(...)
+      - pattern: $MODEL.objects.get(...)
+      - pattern: $MODEL.objects.create(...)
+    message: |
+      Naked `.objects.<method>` is forbidden on tenant-scoped models.
+      Use `.objects.for_tenant(ctx).<method>(...)` so the tenant context
+      is explicit. See docs/security/isolation_contract.md (L3).
+    languages: [python]
+    severity: ERROR
+    paths:
+      include:
+        - "api/"
+        - "adminuser/"
+        - "facebook/"
+        - "sf_integration/"
+        - "whatsapp/"
+      exclude:
+        - "**/migrations/**"
+        - "**/tests/**"
+        - "api/tenant_models/_base.py"
+        - "api/security/**"
+
+  - id: forbid-direct-cursor
+    pattern-either:
+      - pattern: connection.cursor()
+      - pattern: connections[...].cursor()
+    message: |
+      Direct `cursor()` access bypasses the tenant guard. Use
+      `api.db.tenant_cursor.tenant_cursor(ctx)` which validates the
+      pinned schema + role + org_id before yielding the cursor.
+    languages: [python]
+    severity: ERROR
+    paths:
+      include:
+        - "api/"
+        - "adminuser/"
+        - "facebook/"
+        - "sf_integration/"
+        - "whatsapp/"
+      exclude:
+        - "**/migrations/**"
+        - "**/tests/**"
+        - "api/db/tenant_cursor.py"
+        - "api/security/**"
+
+  - id: forbid-fstring-sql
+    pattern-either:
+      - pattern: $CUR.execute(f"...", ...)
+      - pattern: $CUR.execute(f"...")
+      - pattern: $CUR.execute(f'...', ...)
+      - pattern: $CUR.execute(f'...')
+    message: |
+      f-string SQL is forbidden — every value must be passed as a
+      bound parameter (the `%s, [...]` form). Identifiers go through
+      `psycopg2.sql.Identifier`, not string interpolation.
+    languages: [python]
+    severity: ERROR
+    paths:
+      exclude:
+        - "**/migrations/**"
+        - "**/tests/**"
+
+  - id: forbid-format-sql
+    pattern-either:
+      - pattern: $CUR.execute("...{...}...".format(...))
+      - pattern: $CUR.execute("...{...}...".format(...), ...)
+    message: |
+      `.format()` on a SQL string is forbidden — same risk as f-strings.
+      Use bound parameters and `psycopg2.sql.Identifier` for identifiers.
+    languages: [python]
+    severity: ERROR
+
+  - id: forbid-kwarg-schema
+    pattern-either:
+      - pattern: kwargs.get('schema')
+      - pattern: kwargs.get("schema")
+      - pattern: kwargs['schema']
+      - pattern: kwargs["schema"]
+    message: |
+      Reading `schema` from kwargs is forbidden. Use the tenant context
+      attached to the request (or the `TenantContext` parameter on
+      background tasks). The schema-authority rule is: the only trusted
+      source of schema is the value pinned by `schema_authority.pin_request_tenant`.
+    languages: [python]
+    severity: ERROR
+    paths:
+      exclude:
+        - "**/migrations/**"
+        - "**/tests/**"
+        - "api/security/schema_authority.py"
+
+  - id: forbid-print-statements
+    pattern: print(...)
+    message: |
+      `print()` in application code ships PII / SQL fragments / tokens
+      to stdout (and the log aggregator). Use the `logging` module with
+      a level (debug/info/warning/error/exception).
+    languages: [python]
+    severity: WARNING
+    paths:
+      include:
+        - "api/"
+        - "adminuser/"
+        - "facebook/"
+        - "sf_integration/"
+        - "whatsapp/"
+      exclude:
+        - "**/migrations/**"
+        - "**/tests/**"
+        - "manage.py"
+        - "scripts/**"
+
+  - id: forbid-mass-assignment-spread
+    pattern-either:
+      - pattern: |
+          {**$PAYLOAD, ...}
+    message: |
+      Spreading user-supplied payloads into a model-create dict allows
+      mass-assignment. Build the dict explicitly from an allowed-field
+      whitelist; layer system fields (id, created_by_id, owner_id) on
+      top so user keys cannot overwrite them.
+    languages: [python]
+    severity: WARNING
+    paths:
+      include:
+        - "api/BL/"
+      exclude:
+        - "**/tests/**"
+
+  - id: require-tenant-cursor-helper
+    pattern: |
+      with $CUR as $C:
+          ...
+    message: |
+      Raw `with cursor as c:` usage outside the audited helper is
+      discouraged. Migrate to `with tenant_cursor(ctx) as c:`.
+    languages: [python]
+    severity: INFO
+    paths:
+      include:
+        - "api/"
+      exclude:
+        - "**/migrations/**"
+        - "**/tests/**"
+        - "api/db/tenant_cursor.py"
+        - "api/security/**"
