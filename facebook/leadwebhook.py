@@ -114,6 +114,13 @@ def map_field_data(data: Dict[str, Any], mapping: Dict[str, str]) -> Dict[str, A
 
 @method_decorator(csrf_exempt, name="dispatch")
 class FacebookWebhookView(APIView):
+    # Phase 2.A4 — explicit authentication_classes=[] + AllowAny so this
+    # view doesn't depend on global DRF defaults. Facebook calls this
+    # without a JWT (Facebook IS the caller, not a logged-in user).
+    # SECURITY: the X-Hub-Signature-256 HMAC verification is what
+    # authenticates an inbound webhook. Confirm verify_signature is
+    # called in the post() handler BEFORE any DB write.
+    authentication_classes = []
     permission_classes = [AllowAny]
 
     def get(self, request, *args, **kwargs):

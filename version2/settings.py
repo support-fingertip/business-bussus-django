@@ -340,16 +340,51 @@ DATABASES = {
 TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
 TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
 
-REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': (
-        # 'rest_framework_simplejwt.authentication.JWTAuthentication',
-        # 'rest_framework.authentication.SessionAuthentication'
-        # 'authentication.custom_jwt_auth.CustomJWTAuthentication', 
-    ),
-    'DEFAULT_PERMISSION_CLASSES': (
-        # 'rest_framework.permissions.IsAuthenticated',
-    ),
-}
+# Phase 2.A4 — DRF auth gate, behind a feature flag.
+#
+# Plain English
+# -------------
+# Today, DRF doesn't apply authentication or "must be authenticated"
+# permission by default to any view. The dispatcher explicitly sets
+# `permission_classes = [IsAuthenticated]`, so the heavily-trafficked
+# API path is safe. But any other view (across adminuser/, public/,
+# facebook/, whatsapp/, sf_integration/, data_export/) is authenticated
+# ONLY if the view explicitly declares it.
+#
+# Once `STRICT_AUTH=1` is set in the environment, DRF defaults to
+# "require JWT + IsAuthenticated" globally. Every view that's
+# legitimately public (login, OTP, OAuth callbacks, signup, webhooks,
+# health probes) MUST then explicitly declare
+#   permission_classes = [AllowAny]; authentication_classes = []
+# otherwise it 401s.
+#
+# The flag is OFF by default during rollout. The operator flips it to 1
+# after:
+#   * Reviewing docs/security/url_audit.md (URL inventory + REVIEW items)
+#   * Running 48h of staging traffic with STRICT_AUTH=1 and triaging
+#     every unexpected 401
+#   * Confirming every webhook endpoint HMAC-verifies before any BL
+#
+# See docs/SEC_PHASE2_A4_OPERATOR_NOTES.md for the full procedure.
+STRICT_AUTH = env.bool("STRICT_AUTH", default=False)
+
+if STRICT_AUTH:
+    REST_FRAMEWORK = {
+        'DEFAULT_AUTHENTICATION_CLASSES': (
+            'authentication.custom_jwt_auth.CustomJWTAuthentication',
+        ),
+        'DEFAULT_PERMISSION_CLASSES': (
+            'rest_framework.permissions.IsAuthenticated',
+        ),
+    }
+else:
+    # Pre-A4 behaviour: no global defaults. Individual views set their
+    # own. The Dispatcher already sets [IsAuthenticated]; the rest of
+    # the codebase relies on view-level declarations.
+    REST_FRAMEWORK = {
+        'DEFAULT_AUTHENTICATION_CLASSES': (),
+        'DEFAULT_PERMISSION_CLASSES': (),
+    }
 
 
 # settings.py

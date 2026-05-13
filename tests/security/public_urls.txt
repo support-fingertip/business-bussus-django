@@ -1,0 +1,73 @@
+# Public URL allowlist — Phase 2.A4.
+#
+# Every URL pattern listed here is legitimately reachable WITHOUT a
+# JWT. The regression test (tests/security/test_auth_required.py)
+# iterates the entire URL conf and asserts that every URL NOT on this
+# list returns 401/403 for an unauthenticated request.
+#
+# Adding a URL here requires a security review on the PR. Pattern:
+#   - The view must explicitly declare
+#       permission_classes = [AllowAny]
+#       authentication_classes = []
+#   - If it's a webhook, the view must HMAC-verify the request before
+#     any business logic runs.
+#
+# Format
+# ------
+# One regex per line. Lines starting with `#` are comments and are
+# ignored. The regex is matched against the URL path (NOT including
+# the host or query string). Use `^` and `$` anchors to be exact.
+#
+# Comments next to each entry explain WHY it's public.
+
+# --- Health probes (no auth, used by load balancer / k8s) ---
+^/healthz$        # liveness probe — process running
+^/livez$          # alias
+^/readyz$         # readiness — DB + Redis reachable
+
+# --- Top-level static / placeholder ---
+^/$               # empty_view placeholder
+^/media/.*$       # uploaded media. NOTE: REVIEW item in url_audit.md —
+                  # confirm tenant isolation on the storage path before
+                  # flipping STRICT_AUTH=1
+
+# --- Admin (Django session-auth, not DRF) ---
+^/admin/.*$       # Django admin; uses session auth, IP-restricted at LB
+
+# --- Auth flows (login / OTP / signup / password reset) ---
+^/v2/login$                    # main login
+^/v2/admin/login$              # admin-user login variant
+^/v2/auth/signup$              # signup
+^/v2/reset_password$           # password reset (rate-limited; signed proof)
+^/v2/start$                    # OTP send
+^/v2/verify$                   # OTP verify
+^/v2/resend$                   # OTP resend
+^/v2/status$                   # OTP session status (verification_id required)
+^/v2/cancel$                   # cancel OTP session
+^/v2/exists/[^/]+$             # signup precheck (REVIEW: anti-enumeration?)
+^/v2/suggestion/domain$        # signup helper (REVIEW)
+^/v2/suggestion/email$         # signup helper (REVIEW)
+^/v2/check/username/$          # signup precheck
+
+# --- OAuth callbacks (third-party redirects us back here) ---
+# All three MUST verify the `state` parameter that this server originally
+# issued before processing the callback. Without state-verification, an
+# attacker can replay a callback and link the OAuth account to a victim's
+# session.
+^/v2/api/gmail/oauth/callback/$
+^/v2/api/outlook/oauth/callback/$
+^/facebook/api/facebook/login/$
+
+# --- Webhooks (HMAC-verified per request) ---
+# Every webhook below MUST verify the inbound signature against the
+# provider's shared secret BEFORE running any business logic.
+# api/security/webhook_verification.py exists for this — confirm
+# each view actually calls it.
+^/v2/telephony/route$           # Twilio
+^/v2/telephony/connecting$      # Twilio
+^/v2/telephony/hangup$          # Twilio
+^/v2/telephony/cdr$             # Twilio
+^/v2/telephony/outgoing$        # Twilio
+^/v2/incoming-call/$            # telephony provider
+^/facebook/leadcapture/$        # Facebook lead webhook — X-Hub-Signature-256
+^/whatsapp/webhook/$            # WhatsApp — X-Hub-Signature-256 + hub.verify_token

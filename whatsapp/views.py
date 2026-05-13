@@ -14,6 +14,15 @@ from asgiref.sync import async_to_sync
 
 @method_decorator(csrf_exempt, name='dispatch')
 class VerifyWebhookView(APIView):
+    # Phase 2.A4 — explicit authentication_classes=[] + AllowAny so this
+    # view doesn't depend on global DRF defaults. When STRICT_AUTH=1,
+    # this view must continue working without a JWT (WhatsApp calls it
+    # during the verify-handshake and per inbound message).
+    # SECURITY: the HMAC check on X-Hub-Signature-256 is what actually
+    # authenticates an inbound request. The handshake GET path uses a
+    # shared verify_token — currently hardcoded to "verify" (line below);
+    # production should use os.getenv("WHATSAPP_VERIFY_TOKEN").
+    authentication_classes = []
     permission_classes = [AllowAny]
 
     def get(self, request, *args, **kwargs):
