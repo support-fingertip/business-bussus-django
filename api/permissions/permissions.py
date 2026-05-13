@@ -630,11 +630,16 @@ def _get_object_access_level_raw(object_id, schema):
 
 
 def _get_object_access_level_orm(object_id, schema):
+    """Phase 5 adoption: SharingRecord lookup via .for_tenant(ctx)."""
     from api.tenant_models import SharingRecord
+    from api.security.schema_authority import TenantContext
+
     with connection.cursor() as cur:
         cur.execute("SET search_path TO %s", [schema])
+
+    ctx = TenantContext(org_id=schema, schema=schema, profile_id=None)
     return (
-        SharingRecord.objects.filter(object_id=object_id)
+        SharingRecord.objects.for_tenant(ctx).filter(object_id=object_id)
         .values_list("access_level", flat=True)
         .first()
     )
@@ -669,13 +674,18 @@ def _check_permission_raw(object_id, permission_type, schema, profile_id):
 
 
 def _check_permission_orm(object_id, permission_type, schema, profile_id):
+    """Phase 5 adoption: ObjectPermission check via .for_tenant(ctx)."""
     from api.tenant_models import ObjectPermission
+    from api.security.schema_authority import TenantContext
+
     with connection.cursor() as cur:
         cur.execute("SET search_path TO %s", [schema])
+
+    ctx = TenantContext(org_id=schema, schema=schema, profile_id=profile_id)
     # permission_type is already whitelisted (VALID_PERMISSION_TYPES) so
     # the **{key: True} expansion is safe — only attribute names from
     # the whitelist reach the model.
-    return ObjectPermission.objects.filter(
+    return ObjectPermission.objects.for_tenant(ctx).filter(
         object_id=object_id,
         profile_id=profile_id,
         **{permission_type: True},
@@ -752,13 +762,20 @@ def _field_metadata_rows_raw(object_id, access_type, schema, profile_id):
 def _field_metadata_rows_orm(object_id, access_type, schema, profile_id):
     """Same return shape as the raw path (list of tuples in the
     canonical column order). Uses ``select_related('field')`` to avoid
-    N+1 queries."""
+    N+1 queries.
+
+    Phase 5 adoption: FieldPermission lookup via .for_tenant(ctx).
+    """
     from api.tenant_models import FieldPermission
+    from api.security.schema_authority import TenantContext
+
     with connection.cursor() as cur:
         cur.execute("SET search_path TO %s", [schema])
+
+    ctx = TenantContext(org_id=schema, schema=schema, profile_id=profile_id)
     access_attr = f"{access_type}_access"
     qs = (
-        FieldPermission.objects.filter(
+        FieldPermission.objects.for_tenant(ctx).filter(
             object_id=object_id,
             profile_id=profile_id,
             **{access_attr: True},
