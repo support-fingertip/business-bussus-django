@@ -6,6 +6,18 @@ import re
 from django.db import connection, transaction
 from psycopg2 import sql
 
+# Phase 8.A5 — information_schema-backed identifier allow-list +
+# explicit operator whitelist. The audit flagged f-string SQL in this
+# module as CRITICAL; the helpers below replace ad-hoc validation with
+# authoritative checks against Postgres metadata.
+from api.BL.computed_fields_columns import (
+    InvalidIdentifierError,
+    InvalidOperatorError,
+    assert_column,
+    assert_operator,
+    get_allowed_columns,
+)
+
 
 _column_exists_cache: dict = {}
 
@@ -312,21 +324,80 @@ def _matching_parents_via_formula_inline(formula_field, parent_table, op_sql, va
         if not _column_exists(parent_table, ident, schema):
             return None
 
-    if op_sql in ("IS NULL", "IS NOT NULL"):
+    # Phase 8.A5 — defence-in-depth on top of the regex + column-existence
+    # whitelist already done above. Two extra invariants enforced here:
+    #
+    #   (1) op_sql MUST be on the explicit ALLOWED_COMPARISON_OPERATORS
+    #       whitelist. The caller already pulls it from SQL_PUSHABLE_OPS,
+    #       which is a hardcoded dict — but a future refactor that
+    #       widens that dict could break this assumption. assert_operator
+    #       raises if op_sql ever drifts.
+    #
+    #   (2) parent_table + every identifier MUST appear in the
+    #       information_schema.columns row set for (schema, parent_table).
+    #       The old _column_exists used a less-vetted lookup path; the new
+    #       assert_column uses information_schema directly, which is the
+    #       source of truth no formula-string can fool.
+    #
+    # Both checks raise BEFORE any SQL leaves the app (the audit's specific
+    # ask). The caller's outer try/except None-catches them, falling back
+    # to the Python evaluator — same behaviour as a regex-rejection today.
+    try:
+        op_spec = assert_operator(op_sql)
+    except InvalidOperatorError:
+        return None
+    op_sql_fragment = op_spec["sql"]  # already validated; safe to inline
+
+    # The columns we're going to interpolate must each be a real column.
+    # The earlier _column_exists check has already happened, but it doesn't
+    # use information_schema; do an authoritative pass here so a single
+    # source of truth gates the SQL build.
+    try:
+        for ident in identifiers:
+            if ident.upper() in _FUNCTION_TOKENS:
+                continue
+            assert_column(schema, parent_table, ident)
+    except InvalidIdentifierError:
+        return None
+
+    if op_sql == "IS NULL" or op_sql == "IS NOT NULL":
         # IS NULL / IS NOT NULL on a formula: rewrite as "every referenced
         # column IS [NOT] NULL". Approximate but covers the common case.
         params: list = []
-        connector = " AND " if op_sql == "IS NULL" else " OR "
-        clauses = [
-            f"\"{ident}\" {op_sql}" for ident in identifiers
+        # The connector is fixed-shape SQL (AND/OR) — not user input.
+        connector_sql = sql.SQL(" AND ") if op_sql == "IS NULL" else sql.SQL(" OR ")
+        clause_pieces = [
+            sql.SQL("{} ").format(sql.Identifier(ident))
+            + sql.SQL(op_sql_fragment)
+            for ident in identifiers
+            if ident.upper() not in _FUNCTION_TOKENS
         ]
-        having_clause = connector.join(clauses) or "1=1"
-        full_sql = f"SELECT id FROM \"{parent_table}\" WHERE {having_clause}"
+        if clause_pieces:
+            having_clause = connector_sql.join(clause_pieces)
+        else:
+            having_clause = sql.SQL("1=1")
+        full_sql = sql.SQL("SELECT id FROM {tbl} WHERE {clause}").format(
+            tbl=sql.Identifier(parent_table),
+            clause=having_clause,
+        )
     else:
         params = [value]
-        full_sql = (
-            f"SELECT id FROM \"{parent_table}\" WHERE ({expr}) {op_sql} %s"
-        )
+        # `expr` is the user's formula string — it's already passed the
+        # character whitelist (line ~291) AND every identifier in it is
+        # verified above. The remaining risk surface is the operator and
+        # the table name; both are now passed through psycopg2.sql so
+        # they can't break out of their slot.
+        #
+        # We pass the validated expr inside `sql.SQL(...)` rather than
+        # via sql.Identifier (it isn't a single identifier — it's an
+        # arithmetic expression over columns). The whitelist + identifier
+        # check is what makes that safe.
+        full_sql = sql.SQL(
+            "SELECT id FROM {tbl} WHERE ({expr}) "
+        ).format(
+            tbl=sql.Identifier(parent_table),
+            expr=sql.SQL(expr),
+        ) + sql.SQL(op_sql_fragment) + sql.SQL(" %s")
 
     try:
         with transaction.atomic():
