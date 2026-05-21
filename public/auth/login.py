@@ -14,7 +14,6 @@ from api.ORM.AuditLogs.audit_trail_logs import log_audit_sql
 from utils.custom_refresh_token import CustomRefreshToken
 from .session import get_client_ip
 from user_agents import parse
-import threading
 from django.contrib.auth.hashers import check_password
 from api.notifications.notify import trigger_notication
 from channels.layers import get_channel_layer
@@ -144,11 +143,56 @@ class LoginView(View):
                         max_age=86400  # 1 day expiration
                     )
 
-                    # Perform the background operations (logging) in a separate thread
-                    threading.Thread(target=log_user_login, args=(custom_user, profile_id, company_name, ip, location, browser, platform, data, login_url, refresh, access_token, organization_id)).start()
+                    # Phase C2 — session/login logging.
+                    #
+                    # The old code spawned a raw threading.Thread that ran
+                    # INSERT statements directly. That had THREE problems:
+                    #   1. No tenant context — the thread skips the request
+                    #      middleware, so search_path / role / app.current_org_id
+                    #      were never pinned.
+                    #   2. The session_log INSERT omitted organization_id, so
+                    #      under FORCE ROW LEVEL SECURITY the WITH CHECK clause
+                    #      rejects the row.
+                    #   3. Raw SQL bypasses EncryptedCharField — the access /
+                    #      refresh tokens were written to the DB in plaintext.
+                    #
+                    # Routing through the log_user_login_async Celery task
+                    # (a TenantRequiredTask that uses the ORM) fixes all three:
+                    # the ORM path encrypts the tokens, sets organization_id
+                    # from the injected TenantContext, and runs inside a
+                    # with_tenant_schema() block.
+                    try:
+                        from adminuser.tasks import log_user_login_async
+                        from api.celery_tasks.base import serialize_ctx
+                        from api.security.schema_authority import TenantContext
+
+                        _tenant_ctx = TenantContext(
+                            org_id=str(organization_id),
+                            schema=schema,
+                            profile_id=str(profile_id) if profile_id else None,
+                        )
+                        log_user_login_async.apply_async(kwargs={
+                            "_tenant_ctx": serialize_ctx(_tenant_ctx),
+                            "user_id": user_id,
+                            "profile_id": profile_id,
+                            "company_name": company_name,
+                            "ip": ip,
+                            "location": location,
+                            "browser": browser,
+                            "platform": platform,
+                            "client_version": data.get("client_version"),
+                            "api_type": data.get("api_type"),
+                            "api_version": data.get("api_version", "1.0"),
+                            "login_url": login_url,
+                            "access_token": str(access_token),
+                            "refresh_token": str(refresh),
+                        })
+                    except Exception as e:
+                        # Logging is best-effort — never fail the login over it.
+                        logger.error(f"Failed to queue login logging task: {str(e)}")
                     #Trigger notification for org admin
                     if not is_staff and not is_superuser:
-                        kwargs["message"] = f"{username} is logged in at {datetime.now().strftime("%H:%M %p")}",
+                        kwargs["message"] = f"{username} is logged in at {datetime.now().strftime('%H:%M %p')}"
                         org_admin = get_admin_user(organization_id)
                         trigger_notication(
                         owner_id=org_admin,
@@ -188,44 +232,14 @@ def get_location_from_ip(ip_address):
     except Exception:
         return 'Unknown'
 
-def log_user_login(user, profile_id, company_name, ip, location, browser, platform, data, login_url, refresh, access_token, organization_id):
-    """
-    Perform background operations (logging session and history)
-    """
-    cursor = connection.cursor()
-    try:
-        random_id = uuid.uuid4().hex[:10]
-        cursor.execute(""" 
-            INSERT INTO session_log (
-                id, user_id, profile_id, company_name, login_time, 
-                access_token, refresh_token, ip_address
-            )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-        """, (
-            f"087ulin{random_id}hs", user.id, profile_id, company_name, now(),
-            str(access_token), str(refresh), ip
-        ))
+# Phase C2 — `log_user_login` (raw-SQL threading helper) was removed.
+# It wrote session_log / user_login_history rows via direct INSERT,
+# which (a) bypassed EncryptedCharField and stored access/refresh
+# tokens in plaintext, (b) omitted organization_id on session_log,
+# and (c) ran with no tenant context. Login logging now goes through
+# adminuser.tasks.log_user_login_async (a TenantRequiredTask using
+# the ORM) — see the apply_async call in LoginView.post above.
 
-        cursor.execute("""
-            INSERT INTO user_login_history (
-                id, users_id, ip_address, location, login_type, status,
-                browser, platform, application, client_version, 
-                api_type, api_version, login_url, login_time, organization_id
-            )
-            VALUES (%s, %s, %s, %s, 'success', 'Success', %s, %s, 'Web', %s, %s, %s, %s, %s, %s)
-        """, (
-            f"087ulin{random_id}hs", user.id, ip, location, browser, platform,
-            data.get('client_version', 'Unknown'),
-            data.get('api_type', 'Unknown'),
-            data.get('api_version', '1.0'),
-            login_url,
-            now(),
-            organization_id
-        ))
-    except Exception as e:
-        logger.error(f"Error logging user login: {str(e)}")
-    finally:
-        cursor.close()
 
 def get_admin_user(org_id):
     try:
