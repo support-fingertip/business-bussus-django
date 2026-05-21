@@ -3195,7 +3195,7 @@ class BusinessLogicHandler:
                             if components and page_id:
                                 components_result = post_permission(self.request, 'page_component', create_data=components, **kwargs)
                                 if not components_result.get('success', False):
-                                    raise Exception(f'Error occured while creating components: {components_result.get('error', None)}')      
+                                    raise Exception(f'Error occured while creating components: {components_result.get("error", None)}')      
                             else:
                                 raise Exception("Please provide some components.") 
                         else:
