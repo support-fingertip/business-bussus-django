@@ -458,8 +458,18 @@ if ENVIRONMENT == "production" and _schema_authority_enforce != "1":
     )
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60*12),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    # Phase C5 — access-token lifetime cut from 12h to 30 min.
+    # A 12-hour access token is a 12-hour window for a stolen token
+    # (via a logged URL, a shared device, an XSS payload) to be
+    # replayed. 30 minutes bounds that window; the 7-day refresh
+    # token + ROTATE_REFRESH_TOKENS keeps the user logged in without
+    # re-entering their password. Overridable via env for tuning.
+    'ACCESS_TOKEN_LIFETIME': timedelta(
+        minutes=env.int("JWT_ACCESS_MINUTES", default=30)
+    ),
+    'REFRESH_TOKEN_LIFETIME': timedelta(
+        days=env.int("JWT_REFRESH_DAYS", default=7)
+    ),
     "ALGORITHM": "HS256",
     "SIGNING_KEY": JWT_SECRET_KEY,
     'AUTH_HEADER_TYPES': ('Bearer',),
@@ -659,8 +669,27 @@ LOGGING = {
         },
     },
 }
-# Allow large multipart uploads for the background data-import pipeline.
-# The file is streamed straight to disk in the import view, so memory stays bounded.
-DATA_UPLOAD_MAX_MEMORY_SIZE = 500 * 1024 * 1024  # 500 MB
+# Phase C5 — request-body size limits (DoS hardening).
+#
+# DATA_UPLOAD_MAX_MEMORY_SIZE caps the NON-FILE portion of a request
+# body. Django streams multipart FILE parts straight to disk and they
+# do NOT count toward this limit — so the previous 500 MB value did
+# NOT actually enable large file uploads, it just allowed a 500 MB
+# JSON body into memory. A handful of concurrent 500 MB JSON POSTs
+# would exhaust server RAM (a trivial denial-of-service).
+#
+# 25 MB is still a very large JSON payload (well beyond any normal
+# bulk operation). Operators who genuinely need more for a specific
+# bulk-import endpoint can raise DATA_UPLOAD_MAX_MEMORY_MB in the env.
+# File uploads are unaffected — they stream to disk via
+# FILE_UPLOAD_MAX_MEMORY_SIZE and the import view's own size cap.
+DATA_UPLOAD_MAX_MEMORY_SIZE = (
+    env.int("DATA_UPLOAD_MAX_MEMORY_MB", default=25) * 1024 * 1024
+)
 FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024    # 5 MB before spilling to temp file
-DATA_UPLOAD_MAX_NUMBER_FIELDS = 100000
+# Caps the number of form fields per request — protects against the
+# hash-collision DoS (a request with hundreds of thousands of keys).
+# 10k is far more than any legitimate form; was 100k.
+DATA_UPLOAD_MAX_NUMBER_FIELDS = env.int(
+    "DATA_UPLOAD_MAX_NUMBER_FIELDS", default=10000
+)
