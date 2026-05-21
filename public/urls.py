@@ -2,7 +2,7 @@ from django.urls import path
 from django.views.decorators.csrf import csrf_exempt
 
 from public.auth import otp_verification, reset_password, signup
-from public.auth.login import CompleteMfaLoginView, LoginView
+from public.auth.login import LoginView
 from public.auth.logout import LogoutView
 from public.utils.exists import ExistsView
 from public.utils.suggestions import CheckUsernameExistsView, SuggestionDomainView, SuggestionUsernameView
@@ -16,9 +16,6 @@ from api.security.mfa_views import (
 
 urlpatterns = [
     path('login', LoginView.as_view(), name='login'),
-    # Phase C9 — MFA login step 2 (Pattern A). Dormant unless the user
-    # has enrolled in MFA; see api/security/mfa_login.py.
-    path('login/mfa', CompleteMfaLoginView.as_view(), name='login_mfa'),
     path('auth/logout/', LogoutView.as_view(), name='logout'),
     path('reset_password', reset_password.set_password_with_proof, name='reset_password'),
     # Phase C9 — MFA (TOTP) enrollment + management. All require a JWT.
