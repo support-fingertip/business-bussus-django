@@ -206,6 +206,10 @@ MIDDLEWARE = [
     # later middleware or view body inherit tenant_id + user_id tags
     # automatically. No-op if sentry-sdk isn't installed.
     'api.security.sentry_tags.SentryTenantTagMiddleware',
+    # Phase C7 — Content-Security-Policy header. Report-only by
+    # default (CSP_ENFORCE unset); set CSP_ENFORCE=1 after soaking
+    # the violation reports. See api/security/csp.py.
+    'api.security.csp.ContentSecurityPolicyMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
