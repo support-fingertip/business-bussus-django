@@ -269,6 +269,45 @@ class UserLoginHistory(models.Model):
     
     
     
+class UserMFA(models.Model):
+    """Phase C9 — per-user multi-factor-auth state.
+
+    A separate model (OneToOne to User) rather than columns on User,
+    so the auth-sensitive fields are isolated and the User model
+    stays focused.
+
+    ``secret`` is the TOTP secret — as sensitive as a password, so
+    it's stored with EncryptedCharField (encrypted at rest).
+    ``recovery_codes`` holds the HASHED one-time recovery codes
+    (never plaintext). ``enabled`` is False during enrollment and
+    flips True only after the user confirms a code.
+    """
+
+    user = models.OneToOneField(
+        User, on_delete=models.CASCADE, related_name="mfa",
+        db_column="user_id",
+    )
+    # TOTP secret — encrypted at rest. max_length 512 covers the
+    # base32 secret plus Fernet overhead.
+    secret = EncryptedCharField(max_length=512)
+    # False until the user verifies a code during enrollment.
+    enabled = models.BooleanField(default=False)
+    # JSON list of HASHED recovery codes (one-time backup codes).
+    recovery_codes = models.JSONField(default=list, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "user_mfa"
+        verbose_name = "User MFA"
+        verbose_name_plural = "User MFA"
+
+    def __str__(self):
+        state = "enabled" if self.enabled else "pending"
+        return f"MFA for {self.user_id} ({state})"
+
+
 # class FacebookLeadWebhooks(models.Model):
 #     id = models.CharField(primary_key=True, editable=False, max_length=64)
 #     webhook = models.URLField(max_length=1024),

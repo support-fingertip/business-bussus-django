@@ -6,11 +6,23 @@ from public.auth.login import LoginView
 from public.auth.logout import LogoutView
 from public.utils.exists import ExistsView
 from public.utils.suggestions import CheckUsernameExistsView, SuggestionDomainView, SuggestionUsernameView
+# Phase C9 — multi-factor-auth enrollment endpoints.
+from api.security.mfa_views import (
+    MFAConfirmView,
+    MFADisableView,
+    MFAEnrollView,
+    MFAStatusView,
+)
 
 urlpatterns = [
     path('login', LoginView.as_view(), name='login'),
     path('auth/logout/', LogoutView.as_view(), name='logout'),
     path('reset_password', reset_password.set_password_with_proof, name='reset_password'),
+    # Phase C9 — MFA (TOTP) enrollment + management. All require a JWT.
+    path('mfa/status', MFAStatusView.as_view(), name='mfa_status'),
+    path('mfa/enroll', MFAEnrollView.as_view(), name='mfa_enroll'),
+    path('mfa/confirm', MFAConfirmView.as_view(), name='mfa_confirm'),
+    path('mfa/disable', MFADisableView.as_view(), name='mfa_disable'),
     # OTP Verification APIs
     path("start", csrf_exempt(otp_verification.start_otp)),
     path("verify", csrf_exempt(otp_verification.verify_otp)),
