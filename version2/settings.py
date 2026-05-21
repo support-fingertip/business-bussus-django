@@ -500,13 +500,25 @@ AUTH_PASSWORD_VALIDATORS = [
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
     },
     {
+        # Phase C6 — bumped the minimum from Django's default 8 to 10.
+        # 8 characters is brute-forceable; 10 is a meaningful step up
+        # without being annoying for users.
         'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        'OPTIONS': {'min_length': 10},
     },
     {
         'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
     },
     {
         'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+    },
+    {
+        # Phase C6 — reject passwords found in the Have I Been Pwned
+        # breach corpus (hundreds of millions of real leaked passwords).
+        # Uses the k-anonymity range API: HIBP only ever sees the first
+        # 5 chars of the SHA-1, never the password. Fails OPEN on a
+        # network error so a HIBP outage can't block all signups.
+        'NAME': 'api.security.password_validators.BreachedPasswordValidator',
     },
 ]
 
