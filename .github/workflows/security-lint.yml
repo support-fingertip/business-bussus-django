@@ -1,0 +1,110 @@
+# Security lint — Phase C4 of the code-hardening plan.
+#
+# Runs the tenant-isolation Semgrep rules (.semgrep/tenant_isolation.yml)
+# on every pull request. The rules ban the patterns that quietly
+# re-introduce cross-tenant leaks:
+#
+#   * naked Model.objects.* on tenant models (must use .for_tenant(ctx))
+#   * direct connection.cursor() (must use api.db.tenant_cursor)
+#   * f-string / .format() SQL
+#   * kwargs.get('schema') (must use the pinned TenantContext)
+#   * print() in application code
+#
+# Rollout note
+# ------------
+# The codebase still has legacy violations of these rules. If the job
+# failed hard today, every PR would be red. So this workflow runs
+# Semgrep in *report* mode first: it posts findings as annotations
+# but does NOT fail the build (continue-on-error: true).
+#
+# Graduation to a hard gate:
+#   1. Land C2 (threading login) + the Phase 5 adoption waves.
+#   2. Burn down the remaining legacy violations file-by-file.
+#   3. Flip `continue-on-error` to false (or remove it) so a new
+#      violation blocks the merge.
+#
+# Until then this still adds value: every new violation shows up as a
+# visible annotation on the PR, so reviewers catch regressions even
+# while the legacy debt is paid down.
+
+name: security-lint
+
+on:
+  pull_request:
+    branches: ["**"]
+  push:
+    branches: ["main", "final-bussiness-backend"]
+
+jobs:
+  tenant-isolation-semgrep:
+    name: Tenant-isolation Semgrep rules
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Semgrep
+        run: pip install semgrep
+
+      - name: Run tenant-isolation rules (report mode)
+        # continue-on-error: report findings without failing the build.
+        # Flip to false once the legacy violations are cleaned up.
+        continue-on-error: true
+        run: |
+          semgrep \
+            --config .semgrep/tenant_isolation.yml \
+            --error \
+            --metrics off \
+            api/ adminuser/ public/ facebook/ whatsapp/ sf_integration/
+
+      - name: Summary
+        run: |
+          echo "Semgrep tenant-isolation scan complete." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "This job runs in REPORT mode. Findings above are" >> $GITHUB_STEP_SUMMARY
+          echo "annotations, not blockers. See" >> $GITHUB_STEP_SUMMARY
+          echo ".github/workflows/security-lint.yml for the plan to" >> $GITHUB_STEP_SUMMARY
+          echo "graduate this to a hard merge gate." >> $GITHUB_STEP_SUMMARY
+
+
+  secret-scan:
+    name: Secret scanning (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Full history so gitleaks can scan past commits too.
+          fetch-depth: 0
+
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+
+  python-syntax:
+    name: Python syntax check (py_compile)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Compile-check every .py file
+        # Catches syntax errors (e.g. the f-string nested-quote bug)
+        # before they reach a reviewer. Excludes migrations + vendored.
+        run: |
+          python -m compileall -q \
+            api adminuser public facebook whatsapp sf_integration \
+            version2 utils CacheService middleware \
+            || (echo "Python syntax errors found — see above" && exit 1)
